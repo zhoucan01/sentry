@@ -1,0 +1,16 @@
+infantry_25\quaternionekf.o: ..\Components\Algorithm\QuaternionEKF.c
+infantry_25\quaternionekf.o: ..\Components\Algorithm\QuaternionEKF.h
+infantry_25\quaternionekf.o: ../Components/kalman_filter.h
+infantry_25\quaternionekf.o: ../Drivers/CMSIS/Device/ST/STM32F4xx/Include/stm32f407xx.h
+infantry_25\quaternionekf.o: ../Drivers/CMSIS/Include/core_cm4.h
+infantry_25\quaternionekf.o: D:\application\keil_app\keil5\keil_app_path\ARM\ARMCC\Bin\..\include\stdint.h
+infantry_25\quaternionekf.o: ../Drivers/CMSIS/Include/cmsis_version.h
+infantry_25\quaternionekf.o: ../Drivers/CMSIS/Include/cmsis_compiler.h
+infantry_25\quaternionekf.o: ../Drivers/CMSIS/Include/cmsis_armcc.h
+infantry_25\quaternionekf.o: ../Drivers/CMSIS/Include/mpu_armv7.h
+infantry_25\quaternionekf.o: ../Drivers/CMSIS/Device/ST/STM32F4xx/Include/system_stm32f4xx.h
+infantry_25\quaternionekf.o: ../Components/Algorithm/Include/arm_math.h
+infantry_25\quaternionekf.o: ../Drivers/CMSIS/Include/core_cm4.h
+infantry_25\quaternionekf.o: D:\application\keil_app\keil5\keil_app_path\ARM\ARMCC\Bin\..\include\string.h
+infantry_25\quaternionekf.o: D:\application\keil_app\keil5\keil_app_path\ARM\ARMCC\Bin\..\include\math.h
+infantry_25\quaternionekf.o: D:\application\keil_app\keil5\keil_app_path\ARM\ARMCC\Bin\..\include\stdlib.h

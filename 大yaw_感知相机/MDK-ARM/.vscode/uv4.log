@@ -1,0 +1,805 @@
+*** Using Compiler 'V5.06 update 7 (build 960)', folder: 'D:\application\keil_app\keil5\keil_app_path\ARM\ARMCC\Bin'
+Rebuild target 'infantry_25'
+assembling startup_stm32f407xx.s...
+compiling can.c...
+compiling gpio.c...
+compiling small_gimbal.c...
+..\branch\system.h(132): warning:  #1-D: last line of file ends without a newline
+  #endif
+..\branch\decision.h(185): warning:  #1295-D: Deprecated declaration if_navi_get_new_point - give arg types
+  bool if_navi_get_new_point();
+..\branch\decision.h(233): warning:  #1295-D: Deprecated declaration get_referr_data - give arg types
+  void get_referr_data();
+..\branch\decision.h(253): warning:  #1295-D: Deprecated declaration judge_if_stop_navi - give arg types
+  void judge_if_stop_navi();
+..\branch\decision.h(255): warning:  #1295-D: Deprecated declaration IF_decision_point_change - give arg types
+  void IF_decision_point_change();
+..\branch\decision.h(260): warning:  #1295-D: Deprecated declaration If_Point_arrived - give arg types
+  void If_Point_arrived();
+..\branch\decision.h(261): warning:  #1295-D: Deprecated declaration judge_if_chassis_weak - give arg types
+  void judge_if_chassis_weak();
+..\branch\decision.h(285): warning:  #1295-D: Deprecated declaration decision_point_fill - give arg types
+  void decision_point_fill();
+..\branch\decision.h(292): warning:  #1-D: last line of file ends without a newline
+  #endif
+..\branch\system.h(118): warning:  #1295-D: Deprecated declaration judeg_if_imu_error - give arg types
+  uint8_t judeg_if_imu_error();
+..\branch\system.h(132): warning:  #1-D: last line of file ends without a newline
+  #endif
+..\branch\small_gimbal.h(76): warning:  #1295-D: Deprecated declaration get_gimbal_com - give arg types
+  void get_gimbal_com();
+..\branch\small_gimbal.h(84): warning:  #1-D: last line of file ends without a newline
+  #endif
+../bsp/boards/bsp_transmit.h(82): warning:  #1295-D: Deprecated declaration get_referr_data - give arg types
+  void get_referr_data();
+../bsp/boards/bsp_transmit.h(83): warning:  #1295-D: Deprecated declaration reslove_referee_data - give arg types
+  void reslove_referee_data();
+../bsp/boards/bsp_transmit.h(85): warning:  #1295-D: Deprecated declaration reslove_referee_data - give arg types
+  void reslove_referee_data();
+../bsp/boards/bsp_transmit.h(93): warning:  #1-D: last line of file ends without a newline
+  #endif
+..\branch\gimbal_big_yaw.h(52): warning:  #1295-D: Deprecated declaration gimbal_vision_no_mode - give arg types
+  void gimbal_vision_no_mode();
+..\branch\gimbal_big_yaw.h(55): warning:  #1-D: last line of file ends without a newline
+  #endif
+..\branch\small_gimbal.c: 19 warnings, 0 errors
+compiling freertos.c...
+compiling navigation.c...
+../branch/system.h(132): warning:  #1-D: last line of file ends without a newline
+  #endif
+../branch/decision.h(185): warning:  #1295-D: Deprecated declaration if_navi_get_new_point - give arg types
+  bool if_navi_get_new_point();
+../branch/decision.h(233): warning:  #1295-D: Deprecated declaration get_referr_data - give arg types
+  void get_referr_data();
+../branch/decision.h(253): warning:  #1295-D: Deprecated declaration judge_if_stop_navi - give arg types
+  void judge_if_stop_navi();
+../branch/decision.h(255): warning:  #1295-D: Deprecated declaration IF_decision_point_change - give arg types
+  void IF_decision_point_change();
+../branch/decision.h(260): warning:  #1295-D: Deprecated declaration If_Point_arrived - give arg types
+  void If_Point_arrived();
+../branch/decision.h(261): warning:  #1295-D: Deprecated declaration judge_if_chassis_weak - give arg types
+  void judge_if_chassis_weak();
+../branch/decision.h(285): warning:  #1295-D: Deprecated declaration decision_point_fill - give arg types
+  void decision_point_fill();
+../branch/decision.h(292): warning:  #1-D: last line of file ends without a newline
+  #endif
+../branch/system.h(118): warning:  #1295-D: Deprecated declaration judeg_if_imu_error - give arg types
+  uint8_t judeg_if_imu_error();
+../branch/system.h(132): warning:  #1-D: last line of file ends without a newline
+  #endif
+../branch/small_gimbal.h(76): warning:  #1295-D: Deprecated declaration get_gimbal_com - give arg types
+  void get_gimbal_com();
+../branch/small_gimbal.h(84): warning:  #1-D: last line of file ends without a newline
+  #endif
+../bsp/boards/bsp_transmit.h(82): warning:  #1295-D: Deprecated declaration get_referr_data - give arg types
+  void get_referr_data();
+../bsp/boards/bsp_transmit.h(83): warning:  #1295-D: Deprecated declaration reslove_referee_data - give arg types
+  void reslove_referee_data();
+../bsp/boards/bsp_transmit.h(85): warning:  #1295-D: Deprecated declaration reslove_referee_data - give arg types
+  void reslove_referee_data();
+../bsp/boards/bsp_transmit.h(93): warning:  #1-D: last line of file ends without a newline
+  #endif
+..\branch\navigation.h(123): warning:  #1-D: last line of file ends without a newline
+  #endif
+..\branch\navigation.c(132): warning:  #188-D: enumerated type mixed with another type
+    IOIOL=CDC_Transmit_FS(TX_Buff,navigation_tx_len);
+..\branch\navigation.c(139): warning:  #1-D: last line of file ends without a newline
+   }
+..\branch\navigation.c: 20 warnings, 0 errors
+compiling chassis_control.c...
+..\branch\system.h(132): warning:  #1-D: last line of file ends without a newline
+  #endif
+..\branch\decision.h(185): warning:  #1295-D: Deprecated declaration if_navi_get_new_point - give arg types
+  bool if_navi_get_new_point();
+..\branch\decision.h(233): warning:  #1295-D: Deprecated declaration get_referr_data - give arg types
+  void get_referr_data();
+..\branch\decision.h(253): warning:  #1295-D: Deprecated declaration judge_if_stop_navi - give arg types
+  void judge_if_stop_navi();
+..\branch\decision.h(255): warning:  #1295-D: Deprecated declaration IF_decision_point_change - give arg types
+  void IF_decision_point_change();
+..\branch\decision.h(260): warning:  #1295-D: Deprecated declaration If_Point_arrived - give arg types
+  void If_Point_arrived();
+..\branch\decision.h(261): warning:  #1295-D: Deprecated declaration judge_if_chassis_weak - give arg types
+  void judge_if_chassis_weak();
+..\branch\decision.h(285): warning:  #1295-D: Deprecated declaration decision_point_fill - give arg types
+  void decision_point_fill();
+..\branch\decision.h(292): warning:  #1-D: last line of file ends without a newline
+  #endif
+..\branch\system.h(118): warning:  #1295-D: Deprecated declaration judeg_if_imu_error - give arg types
+  uint8_t judeg_if_imu_error();
+..\branch\system.h(132): warning:  #1-D: last line of file ends without a newline
+  #endif
+..\branch\chassis_control.h(45): warning:  #1295-D: Deprecated declaration get_chassis_com - give arg types
+  void get_chassis_com();
+..\branch\chassis_control.h(47): warning:  #1295-D: Deprecated declaration chassis_task_run - give arg types
+  void chassis_task_run();
+..\branch\chassis_control.h(56): warning:  #1-D: last line of file ends without a newline
+  #endif
+..\branch\gimbal_big_yaw.h(52): warning:  #1295-D: Deprecated declaration gimbal_vision_no_mode - give arg types
+  void gimbal_vision_no_mode();
+..\branch\gimbal_big_yaw.h(55): warning:  #1-D: last line of file ends without a newline
+  #endif
+../branch/small_gimbal.h(76): warning:  #1295-D: Deprecated declaration get_gimbal_com - give arg types
+  void get_gimbal_com();
+../branch/small_gimbal.h(84): warning:  #1-D: last line of file ends without a newline
+  #endif
+../bsp/boards/bsp_transmit.h(82): warning:  #1295-D: Deprecated declaration get_referr_data - give arg types
+  void get_referr_data();
+../bsp/boards/bsp_transmit.h(83): warning:  #1295-D: Deprecated declaration reslove_referee_data - give arg types
+  void reslove_referee_data();
+../bsp/boards/bsp_transmit.h(85): warning:  #1295-D: Deprecated declaration reslove_referee_data - give arg types
+  void reslove_referee_data();
+../bsp/boards/bsp_transmit.h(93): warning:  #1-D: last line of file ends without a newline
+  #endif
+..\branch\navigation.h(123): warning:  #1-D: last line of file ends without a newline
+  #endif
+..\branch\chassis_control.c(128): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+        mode->chassis_vx=sentry_system.chassis_set.set_vx*0.25;
+..\branch\chassis_control.c(129): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+        mode->chassis_vy=sentry_system.chassis_set.set_vy*0.25;
+..\branch\chassis_control.c(158): warning:  #1-D: last line of file ends without a newline
+  }
+..\branch\chassis_control.c: 26 warnings, 0 errors
+compiling motor.c...
+..\branch\system.h(132): warning:  #1-D: last line of file ends without a newline
+  #endif
+..\branch\decision.h(185): warning:  #1295-D: Deprecated declaration if_navi_get_new_point - give arg types
+  bool if_navi_get_new_point();
+..\branch\decision.h(233): warning:  #1295-D: Deprecated declaration get_referr_data - give arg types
+  void get_referr_data();
+..\branch\decision.h(253): warning:  #1295-D: Deprecated declaration judge_if_stop_navi - give arg types
+  void judge_if_stop_navi();
+..\branch\decision.h(255): warning:  #1295-D: Deprecated declaration IF_decision_point_change - give arg types
+  void IF_decision_point_change();
+..\branch\decision.h(260): warning:  #1295-D: Deprecated declaration If_Point_arrived - give arg types
+  void If_Point_arrived();
+..\branch\decision.h(261): warning:  #1295-D: Deprecated declaration judge_if_chassis_weak - give arg types
+  void judge_if_chassis_weak();
+..\branch\decision.h(285): warning:  #1295-D: Deprecated declaration decision_point_fill - give arg types
+  void decision_point_fill();
+..\branch\decision.h(292): warning:  #1-D: last line of file ends without a newline
+  #endif
+..\branch\system.h(118): warning:  #1295-D: Deprecated declaration judeg_if_imu_error - give arg types
+  uint8_t judeg_if_imu_error();
+..\branch\system.h(132): warning:  #1-D: last line of file ends without a newline
+  #endif
+..\branch\motor.h(5): warning:  #1295-D: Deprecated declaration steer_normol_send - give arg types
+  void steer_normol_send();
+..\branch\motor.h(6): warning:  #1295-D: Deprecated declaration steer_error_send - give arg types
+  void steer_error_send();
+..\branch\motor.h(7): warning:  #1295-D: Deprecated declaration chassis_normol_send - give arg types
+  void chassis_normol_send();
+..\branch\motor.h(8): warning:  #1295-D: Deprecated declaration chassis_error_send - give arg types
+  void chassis_error_send();
+..\branch\motor.h(11): warning:  #1295-D: Deprecated declaration DM_start_run - give arg types
+  void DM_start_run();
+..\branch\gimbal_big_yaw.h(52): warning:  #1295-D: Deprecated declaration gimbal_vision_no_mode - give arg types
+  void gimbal_vision_no_mode();
+..\branch\gimbal_big_yaw.h(55): warning:  #1-D: last line of file ends without a newline
+  #endif
+..\branch\motor.c(80): warning:  #1-D: last line of file ends without a newline
+  }
+..\branch\motor.c: 19 warnings, 0 errors
+compiling Nautilus_Vision.c...
+../branch/system.h(132): warning:  #1-D: last line of file ends without a newline
+  #endif
+../branch/decision.h(185): warning:  #1295-D: Deprecated declaration if_navi_get_new_point - give arg types
+  bool if_navi_get_new_point();
+../branch/decision.h(233): warning:  #1295-D: Deprecated declaration get_referr_data - give arg types
+  void get_referr_data();
+../branch/decision.h(253): warning:  #1295-D: Deprecated declaration judge_if_stop_navi - give arg types
+  void judge_if_stop_navi();
+../branch/decision.h(255): warning:  #1295-D: Deprecated declaration IF_decision_point_change - give arg types
+  void IF_decision_point_change();
+../branch/decision.h(260): warning:  #1295-D: Deprecated declaration If_Point_arrived - give arg types
+  void If_Point_arrived();
+../branch/decision.h(261): warning:  #1295-D: Deprecated declaration judge_if_chassis_weak - give arg types
+  void judge_if_chassis_weak();
+../branch/decision.h(285): warning:  #1295-D: Deprecated declaration decision_point_fill - give arg types
+  void decision_point_fill();
+../branch/decision.h(292): warning:  #1-D: last line of file ends without a newline
+  #endif
+../branch/system.h(118): warning:  #1295-D: Deprecated declaration judeg_if_imu_error - give arg types
+  uint8_t judeg_if_imu_error();
+../branch/system.h(132): warning:  #1-D: last line of file ends without a newline
+  #endif
+../branch/small_gimbal.h(76): warning:  #1295-D: Deprecated declaration get_gimbal_com - give arg types
+  void get_gimbal_com();
+../branch/small_gimbal.h(84): warning:  #1-D: last line of file ends without a newline
+  #endif
+../bsp/boards/bsp_transmit.h(82): warning:  #1295-D: Deprecated declaration get_referr_data - give arg types
+  void get_referr_data();
+../bsp/boards/bsp_transmit.h(83): warning:  #1295-D: Deprecated declaration reslove_referee_data - give arg types
+  void reslove_referee_data();
+../bsp/boards/bsp_transmit.h(85): warning:  #1295-D: Deprecated declaration reslove_referee_data - give arg types
+  void reslove_referee_data();
+../bsp/boards/bsp_transmit.h(93): warning:  #1-D: last line of file ends without a newline
+  #endif
+..\Nautilus_Vision\Nautilus_Vision.c: 17 warnings, 0 errors
+compiling gimbal_big_yaw.c...
+..\branch\gimbal_big_yaw.h(52): warning:  #1295-D: Deprecated declaration gimbal_vision_no_mode - give arg types
+  void gimbal_vision_no_mode();
+..\branch\gimbal_big_yaw.h(55): warning:  #1-D: last line of file ends without a newline
+  #endif
+..\branch\system.h(132): warning:  #1-D: last line of file ends without a newline
+  #endif
+..\branch\decision.h(185): warning:  #1295-D: Deprecated declaration if_navi_get_new_point - give arg types
+  bool if_navi_get_new_point();
+..\branch\decision.h(233): warning:  #1295-D: Deprecated declaration get_referr_data - give arg types
+  void get_referr_data();
+..\branch\decision.h(253): warning:  #1295-D: Deprecated declaration judge_if_stop_navi - give arg types
+  void judge_if_stop_navi();
+..\branch\decision.h(255): warning:  #1295-D: Deprecated declaration IF_decision_point_change - give arg types
+  void IF_decision_point_change();
+..\branch\decision.h(260): warning:  #1295-D: Deprecated declaration If_Point_arrived - give arg types
+  void If_Point_arrived();
+..\branch\decision.h(261): warning:  #1295-D: Deprecated declaration judge_if_chassis_weak - give arg types
+  void judge_if_chassis_weak();
+..\branch\decision.h(285): warning:  #1295-D: Deprecated declaration decision_point_fill - give arg types
+  void decision_point_fill();
+..\branch\decision.h(292): warning:  #1-D: last line of file ends without a newline
+  #endif
+..\branch\system.h(118): warning:  #1295-D: Deprecated declaration judeg_if_imu_error - give arg types
+  uint8_t judeg_if_imu_error();
+..\branch\system.h(132): warning:  #1-D: last line of file ends without a newline
+  #endif
+../branch/small_gimbal.h(76): warning:  #1295-D: Deprecated declaration get_gimbal_com - give arg types
+  void get_gimbal_com();
+../branch/small_gimbal.h(84): warning:  #1-D: last line of file ends without a newline
+  #endif
+../bsp/boards/bsp_transmit.h(82): warning:  #1295-D: Deprecated declaration get_referr_data - give arg types
+  void get_referr_data();
+../bsp/boards/bsp_transmit.h(83): warning:  #1295-D: Deprecated declaration reslove_referee_data - give arg types
+  void reslove_referee_data();
+../bsp/boards/bsp_transmit.h(85): warning:  #1295-D: Deprecated declaration reslove_referee_data - give arg types
+  void reslove_referee_data();
+../bsp/boards/bsp_transmit.h(93): warning:  #1-D: last line of file ends without a newline
+  #endif
+..\branch\navigation.h(123): warning:  #1-D: last line of file ends without a newline
+  #endif
+..\branch\gimbal_big_yaw.c(159): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+         mode->yaw_vision_set-=0.2;
+..\branch\gimbal_big_yaw.c(163): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+         mode->yaw_vision_set+=0.2;
+..\branch\gimbal_big_yaw.c(171): warning:  #940-D: missing return statement at end of non-void function "get_gimbal_response_state" 
+  }
+..\branch\gimbal_big_yaw.c: 23 warnings, 0 errors
+compiling main.c...
+compiling system.c...
+../branch/system.h(132): warning:  #1-D: last line of file ends without a newline
+  #endif
+../branch/decision.h(185): warning:  #1295-D: Deprecated declaration if_navi_get_new_point - give arg types
+  bool if_navi_get_new_point();
+../branch/decision.h(233): warning:  #1295-D: Deprecated declaration get_referr_data - give arg types
+  void get_referr_data();
+../branch/decision.h(253): warning:  #1295-D: Deprecated declaration judge_if_stop_navi - give arg types
+  void judge_if_stop_navi();
+../branch/decision.h(255): warning:  #1295-D: Deprecated declaration IF_decision_point_change - give arg types
+  void IF_decision_point_change();
+../branch/decision.h(260): warning:  #1295-D: Deprecated declaration If_Point_arrived - give arg types
+  void If_Point_arrived();
+../branch/decision.h(261): warning:  #1295-D: Deprecated declaration judge_if_chassis_weak - give arg types
+  void judge_if_chassis_weak();
+../branch/decision.h(285): warning:  #1295-D: Deprecated declaration decision_point_fill - give arg types
+  void decision_point_fill();
+../branch/decision.h(292): warning:  #1-D: last line of file ends without a newline
+  #endif
+../branch/system.h(118): warning:  #1295-D: Deprecated declaration judeg_if_imu_error - give arg types
+  uint8_t judeg_if_imu_error();
+../branch/system.h(132): warning:  #1-D: last line of file ends without a newline
+  #endif
+../branch/small_gimbal.h(76): warning:  #1295-D: Deprecated declaration get_gimbal_com - give arg types
+  void get_gimbal_com();
+../branch/small_gimbal.h(84): warning:  #1-D: last line of file ends without a newline
+  #endif
+../bsp/boards/bsp_transmit.h(82): warning:  #1295-D: Deprecated declaration get_referr_data - give arg types
+  void get_referr_data();
+../bsp/boards/bsp_transmit.h(83): warning:  #1295-D: Deprecated declaration reslove_referee_data - give arg types
+  void reslove_referee_data();
+../bsp/boards/bsp_transmit.h(85): warning:  #1295-D: Deprecated declaration reslove_referee_data - give arg types
+  void reslove_referee_data();
+../bsp/boards/bsp_transmit.h(93): warning:  #1-D: last line of file ends without a newline
+  #endif
+..\branch\navigation.h(123): warning:  #1-D: last line of file ends without a newline
+  #endif
+..\branch\system.c(280): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+      mode->chassis_set.set_vx*=0.33;
+..\branch\system.c(281): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+      mode->chassis_set.set_vy*=0.33;
+..\branch\system.c: 20 warnings, 0 errors
+compiling decision.c...
+..\branch\decision.h(292): warning:  #1-D: last line of file ends without a newline
+  #endif
+..\branch\system.h(118): warning:  #1295-D: Deprecated declaration judeg_if_imu_error - give arg types
+  uint8_t judeg_if_imu_error();
+..\branch\system.h(132): warning:  #1-D: last line of file ends without a newline
+  #endif
+..\branch\decision.h(185): warning:  #1295-D: Deprecated declaration if_navi_get_new_point - give arg types
+  bool if_navi_get_new_point();
+..\branch\decision.h(233): warning:  #1295-D: Deprecated declaration get_referr_data - give arg types
+  void get_referr_data();
+..\branch\decision.h(253): warning:  #1295-D: Deprecated declaration judge_if_stop_navi - give arg types
+  void judge_if_stop_navi();
+..\branch\decision.h(255): warning:  #1295-D: Deprecated declaration IF_decision_point_change - give arg types
+  void IF_decision_point_change();
+..\branch\decision.h(260): warning:  #1295-D: Deprecated declaration If_Point_arrived - give arg types
+  void If_Point_arrived();
+..\branch\decision.h(261): warning:  #1295-D: Deprecated declaration judge_if_chassis_weak - give arg types
+  void judge_if_chassis_weak();
+..\branch\decision.h(285): warning:  #1295-D: Deprecated declaration decision_point_fill - give arg types
+  void decision_point_fill();
+..\branch\decision.h(292): warning:  #1-D: last line of file ends without a newline
+  #endif
+../branch/small_gimbal.h(76): warning:  #1295-D: Deprecated declaration get_gimbal_com - give arg types
+  void get_gimbal_com();
+../branch/small_gimbal.h(84): warning:  #1-D: last line of file ends without a newline
+  #endif
+../bsp/boards/bsp_transmit.h(82): warning:  #1295-D: Deprecated declaration get_referr_data - give arg types
+  void get_referr_data();
+../bsp/boards/bsp_transmit.h(83): warning:  #1295-D: Deprecated declaration reslove_referee_data - give arg types
+  void reslove_referee_data();
+../bsp/boards/bsp_transmit.h(85): warning:  #1295-D: Deprecated declaration reslove_referee_data - give arg types
+  void reslove_referee_data();
+../bsp/boards/bsp_transmit.h(93): warning:  #1-D: last line of file ends without a newline
+  #endif
+..\branch\navigation.h(123): warning:  #1-D: last line of file ends without a newline
+  #endif
+..\branch\decision.c(1073): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+       float diff_angle=diff_yaw*2*3.14/360;
+..\branch\decision.c(1278): warning:  #940-D: missing return statement at end of non-void function "judge_if_nothurt" 
+  }
+..\branch\decision.c(1294): warning:  #177-D: variable "hurt_time"  was declared but never referenced
+    static int hurt_time=0;
+..\branch\decision.c(1450): warning:  #940-D: missing return statement at end of non-void function "judge_if_enemy_small_energy" 
+  }
+..\branch\decision.c(1466): warning:  #177-D: variable "lock_time"  was declared but never referenced
+   static uint16_t lock_time; 
+..\branch\decision.c(1673): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+   if((current_x>we_toss_start_x&&current_x<we_toss_end_x&&current_y>we_toss_start_y&&current_y<we_toss_end_y)
+..\branch\decision.c(1673): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+   if((current_x>we_toss_start_x&&current_x<we_toss_end_x&&current_y>we_toss_start_y&&current_y<we_toss_end_y)
+..\branch\decision.c(1673): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+   if((current_x>we_toss_start_x&&current_x<we_toss_end_x&&current_y>we_toss_start_y&&current_y<we_toss_end_y)
+..\branch\decision.c(1674): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+     ||(current_x>enemy_toss_start_x&&current_x<enemy_toss_end_x&&current_y>enemy_toss_start_y&&current_y<enemy_toss_end_y))
+..\branch\decision.c(1674): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+     ||(current_x>enemy_toss_start_x&&current_x<enemy_toss_end_x&&current_y>enemy_toss_start_y&&current_y<enemy_toss_end_y))
+..\branch\decision.c(1674): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+     ||(current_x>enemy_toss_start_x&&current_x<enemy_toss_end_x&&current_y>enemy_toss_start_y&&current_y<enemy_toss_end_y))
+..\branch\decision.c(1674): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+     ||(current_x>enemy_toss_start_x&&current_x<enemy_toss_end_x&&current_y>enemy_toss_start_y&&current_y<enemy_toss_end_y))
+..\branch\decision.c(1690): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+   if((current_x>we_u_start_x&&current_x<we_u_end_x&&current_y>we_u_start_y&&current_y<we_u_end_y)
+..\branch\decision.c(1690): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+   if((current_x>we_u_start_x&&current_x<we_u_end_x&&current_y>we_u_start_y&&current_y<we_u_end_y)
+..\branch\decision.c(1690): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+   if((current_x>we_u_start_x&&current_x<we_u_end_x&&current_y>we_u_start_y&&current_y<we_u_end_y)
+..\branch\decision.c(1691): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+     ||(current_x>enemy_u_start_x&&current_x<enemy_u_end_x&&current_y>enemy_u_start_y&&current_y<enemy_u_end_y))
+..\branch\decision.c(1691): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+     ||(current_x>enemy_u_start_x&&current_x<enemy_u_end_x&&current_y>enemy_u_start_y&&current_y<enemy_u_end_y))
+..\branch\decision.c(1691): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+     ||(current_x>enemy_u_start_x&&current_x<enemy_u_end_x&&current_y>enemy_u_start_y&&current_y<enemy_u_end_y))
+..\branch\decision.c(1713): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+      if(((fabs(ground_robot_position.standard_3_x-RED_FORTRESS_X)<0.5&&fabs(ground_robot_position.standard_3_y-RED_FORTRESS_Y)<0.5))
+..\branch\decision.c(1713): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+      if(((fabs(ground_robot_position.standard_3_x-RED_FORTRESS_X)<0.5&&fabs(ground_robot_position.standard_3_y-RED_FORTRESS_Y)<0.5))
+..\branch\decision.c(1714): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+      ||((fabs(ground_robot_position.standard_3_x-RED_FORTRESS_X)<0.5&&fabs(ground_robot_position.standard_3_y-RED_FORTRESS_Y)<0.5)))
+..\branch\decision.c(1714): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+      ||((fabs(ground_robot_position.standard_3_x-RED_FORTRESS_X)<0.5&&fabs(ground_robot_position.standard_3_y-RED_FORTRESS_Y)<0.5)))
+..\branch\decision.c(1722): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+      if(((fabs(ground_robot_position.standard_3_x-BLUE_FORTRESS_X)<0.5&&fabs(ground_robot_position.standard_3_y-BLUE_FORTRESS_Y)<0.5))
+..\branch\decision.c(1722): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+      if(((fabs(ground_robot_position.standard_3_x-BLUE_FORTRESS_X)<0.5&&fabs(ground_robot_position.standard_3_y-BLUE_FORTRESS_Y)<0.5))
+..\branch\decision.c(1723): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+      ||((fabs(ground_robot_position.standard_3_x-BLUE_FORTRESS_X)<0.5&&fabs(ground_robot_position.standard_3_y-BLUE_FORTRESS_Y)<0.5)))
+..\branch\decision.c(1723): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+      ||((fabs(ground_robot_position.standard_3_x-BLUE_FORTRESS_X)<0.5&&fabs(ground_robot_position.standard_3_y-BLUE_FORTRESS_Y)<0.5)))
+..\branch\decision.c(1758): warning:  #550-D: variable "hero_y"  was set but never used
+    u8_to_u16 hero_x,hero_y,infantry_3_x,infantry_3_y,infantry_4_x,infantry_4_y;
+..\branch\decision.c(1758): warning:  #550-D: variable "infantry_3_x"  was set but never used
+    u8_to_u16 hero_x,hero_y,infantry_3_x,infantry_3_y,infantry_4_x,infantry_4_y;
+..\branch\decision.c(1758): warning:  #550-D: variable "infantry_3_y"  was set but never used
+    u8_to_u16 hero_x,hero_y,infantry_3_x,infantry_3_y,infantry_4_x,infantry_4_y;
+..\branch\decision.c(1758): warning:  #550-D: variable "infantry_4_x"  was set but never used
+    u8_to_u16 hero_x,hero_y,infantry_3_x,infantry_3_y,infantry_4_x,infantry_4_y;
+..\branch\decision.c(1758): warning:  #550-D: variable "infantry_4_y"  was set but never used
+    u8_to_u16 hero_x,hero_y,infantry_3_x,infantry_3_y,infantry_4_x,infantry_4_y;
+..\branch\decision.c(2126): warning:  #550-D: variable "wait_tim10"  was set but never used
+    static uint16_t wait_tim10 = 0;
+..\branch\decision.c: 50 warnings, 0 errors
+compiling stm32f4xx_hal_timebase_tim.c...
+compiling dma.c...
+compiling rtc.c...
+compiling stm32f4xx_hal_msp.c...
+compiling usbd_desc.c...
+compiling tim.c...
+compiling usart.c...
+../branch/system.h(132): warning:  #1-D: last line of file ends without a newline
+  #endif
+../branch/decision.h(185): warning:  #1295-D: Deprecated declaration if_navi_get_new_point - give arg types
+  bool if_navi_get_new_point();
+../branch/decision.h(233): warning:  #1295-D: Deprecated declaration get_referr_data - give arg types
+  void get_referr_data();
+../branch/decision.h(253): warning:  #1295-D: Deprecated declaration judge_if_stop_navi - give arg types
+  void judge_if_stop_navi();
+../branch/decision.h(255): warning:  #1295-D: Deprecated declaration IF_decision_point_change - give arg types
+  void IF_decision_point_change();
+../branch/decision.h(260): warning:  #1295-D: Deprecated declaration If_Point_arrived - give arg types
+  void If_Point_arrived();
+../branch/decision.h(261): warning:  #1295-D: Deprecated declaration judge_if_chassis_weak - give arg types
+  void judge_if_chassis_weak();
+../branch/decision.h(285): warning:  #1295-D: Deprecated declaration decision_point_fill - give arg types
+  void decision_point_fill();
+../branch/decision.h(292): warning:  #1-D: last line of file ends without a newline
+  #endif
+../branch/system.h(118): warning:  #1295-D: Deprecated declaration judeg_if_imu_error - give arg types
+  uint8_t judeg_if_imu_error();
+../branch/system.h(132): warning:  #1-D: last line of file ends without a newline
+  #endif
+../branch/small_gimbal.h(76): warning:  #1295-D: Deprecated declaration get_gimbal_com - give arg types
+  void get_gimbal_com();
+../branch/small_gimbal.h(84): warning:  #1-D: last line of file ends without a newline
+  #endif
+../bsp/boards/bsp_transmit.h(82): warning:  #1295-D: Deprecated declaration get_referr_data - give arg types
+  void get_referr_data();
+../bsp/boards/bsp_transmit.h(83): warning:  #1295-D: Deprecated declaration reslove_referee_data - give arg types
+  void reslove_referee_data();
+../bsp/boards/bsp_transmit.h(85): warning:  #1295-D: Deprecated declaration reslove_referee_data - give arg types
+  void reslove_referee_data();
+../bsp/boards/bsp_transmit.h(93): warning:  #1-D: last line of file ends without a newline
+  #endif
+../Core/Src/usart.c: 17 warnings, 0 errors
+compiling spi.c...
+compiling usb_device.c...
+compiling usbd_conf.c...
+compiling stm32f4xx_it.c...
+../branch/system.h(132): warning:  #1-D: last line of file ends without a newline
+  #endif
+../branch/decision.h(185): warning:  #1295-D: Deprecated declaration if_navi_get_new_point - give arg types
+  bool if_navi_get_new_point();
+../branch/decision.h(233): warning:  #1295-D: Deprecated declaration get_referr_data - give arg types
+  void get_referr_data();
+../branch/decision.h(253): warning:  #1295-D: Deprecated declaration judge_if_stop_navi - give arg types
+  void judge_if_stop_navi();
+../branch/decision.h(255): warning:  #1295-D: Deprecated declaration IF_decision_point_change - give arg types
+  void IF_decision_point_change();
+../branch/decision.h(260): warning:  #1295-D: Deprecated declaration If_Point_arrived - give arg types
+  void If_Point_arrived();
+../branch/decision.h(261): warning:  #1295-D: Deprecated declaration judge_if_chassis_weak - give arg types
+  void judge_if_chassis_weak();
+../branch/decision.h(285): warning:  #1295-D: Deprecated declaration decision_point_fill - give arg types
+  void decision_point_fill();
+../branch/decision.h(292): warning:  #1-D: last line of file ends without a newline
+  #endif
+../branch/system.h(118): warning:  #1295-D: Deprecated declaration judeg_if_imu_error - give arg types
+  uint8_t judeg_if_imu_error();
+../branch/system.h(132): warning:  #1-D: last line of file ends without a newline
+  #endif
+../branch/small_gimbal.h(76): warning:  #1295-D: Deprecated declaration get_gimbal_com - give arg types
+  void get_gimbal_com();
+../branch/small_gimbal.h(84): warning:  #1-D: last line of file ends without a newline
+  #endif
+../bsp/boards/bsp_transmit.h(82): warning:  #1295-D: Deprecated declaration get_referr_data - give arg types
+  void get_referr_data();
+../bsp/boards/bsp_transmit.h(83): warning:  #1295-D: Deprecated declaration reslove_referee_data - give arg types
+  void reslove_referee_data();
+../bsp/boards/bsp_transmit.h(85): warning:  #1295-D: Deprecated declaration reslove_referee_data - give arg types
+  void reslove_referee_data();
+../bsp/boards/bsp_transmit.h(93): warning:  #1-D: last line of file ends without a newline
+  #endif
+../Core/Src/stm32f4xx_it.c: 17 warnings, 0 errors
+compiling usbd_cdc_if.c...
+../branch/system.h(132): warning:  #1-D: last line of file ends without a newline
+  #endif
+../branch/decision.h(185): warning:  #1295-D: Deprecated declaration if_navi_get_new_point - give arg types
+  bool if_navi_get_new_point();
+../branch/decision.h(233): warning:  #1295-D: Deprecated declaration get_referr_data - give arg types
+  void get_referr_data();
+../branch/decision.h(253): warning:  #1295-D: Deprecated declaration judge_if_stop_navi - give arg types
+  void judge_if_stop_navi();
+../branch/decision.h(255): warning:  #1295-D: Deprecated declaration IF_decision_point_change - give arg types
+  void IF_decision_point_change();
+../branch/decision.h(260): warning:  #1295-D: Deprecated declaration If_Point_arrived - give arg types
+  void If_Point_arrived();
+../branch/decision.h(261): warning:  #1295-D: Deprecated declaration judge_if_chassis_weak - give arg types
+  void judge_if_chassis_weak();
+../branch/decision.h(285): warning:  #1295-D: Deprecated declaration decision_point_fill - give arg types
+  void decision_point_fill();
+../branch/decision.h(292): warning:  #1-D: last line of file ends without a newline
+  #endif
+../branch/system.h(118): warning:  #1295-D: Deprecated declaration judeg_if_imu_error - give arg types
+  uint8_t judeg_if_imu_error();
+../branch/system.h(132): warning:  #1-D: last line of file ends without a newline
+  #endif
+../branch/small_gimbal.h(76): warning:  #1295-D: Deprecated declaration get_gimbal_com - give arg types
+  void get_gimbal_com();
+../branch/small_gimbal.h(84): warning:  #1-D: last line of file ends without a newline
+  #endif
+../bsp/boards/bsp_transmit.h(82): warning:  #1295-D: Deprecated declaration get_referr_data - give arg types
+  void get_referr_data();
+../bsp/boards/bsp_transmit.h(83): warning:  #1295-D: Deprecated declaration reslove_referee_data - give arg types
+  void reslove_referee_data();
+../bsp/boards/bsp_transmit.h(85): warning:  #1295-D: Deprecated declaration reslove_referee_data - give arg types
+  void reslove_referee_data();
+../bsp/boards/bsp_transmit.h(93): warning:  #1-D: last line of file ends without a newline
+  #endif
+../branch/navigation.h(123): warning:  #1-D: last line of file ends without a newline
+  #endif
+../USB_DEVICE/App/usbd_cdc_if.c: 18 warnings, 0 errors
+compiling stm32f4xx_hal_pcd.c...
+compiling stm32f4xx_hal_flash_ramfunc.c...
+compiling stm32f4xx_hal_dma_ex.c...
+compiling stm32f4xx_hal_gpio.c...
+compiling stm32f4xx_hal_flash_ex.c...
+compiling stm32f4xx_hal_pwr.c...
+compiling stm32f4xx_hal_pcd_ex.c...
+compiling stm32f4xx_hal_dma.c...
+compiling stm32f4xx_hal_rcc_ex.c...
+compiling stm32f4xx_hal_flash.c...
+compiling stm32f4xx_hal_rcc.c...
+compiling stm32f4xx_ll_usb.c...
+compiling stm32f4xx_hal_pwr_ex.c...
+compiling stm32f4xx_hal_cortex.c...
+compiling system_stm32f4xx.c...
+compiling croutine.c...
+compiling event_groups.c...
+compiling list.c...
+compiling stm32f4xx_hal_can.c...
+compiling queue.c...
+compiling stream_buffer.c...
+compiling stm32f4xx_hal_rtc.c...
+compiling stm32f4xx_hal_exti.c...
+compiling stm32f4xx_hal_spi.c...
+compiling stm32f4xx_hal_rtc_ex.c...
+compiling stm32f4xx_hal.c...
+compiling timers.c...
+compiling stm32f4xx_hal_tim_ex.c...
+compiling tasks.c...
+compiling stm32f4xx_hal_uart.c...
+compiling heap_4.c...
+compiling kalman.c...
+compiling cmsis_os.c...
+compiling port.c...
+compiling stm32f4xx_hal_tim.c...
+compiling QuaternionEKF.c...
+compiling kalman_filter.c...
+compiling bsp_sin_cos_atan_sqrt.c...
+..\bsp\boards\bsp_sin_cos_atan_sqrt.c(82): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+  	if (f >= 0.0)
+..\bsp\boards\bsp_sin_cos_atan_sqrt.c(95): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+  	if ((y == 0.0) && (x == 0.0))
+..\bsp\boards\bsp_sin_cos_atan_sqrt.c(95): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+  	if ((y == 0.0) && (x == 0.0))
+..\bsp\boards\bsp_sin_cos_atan_sqrt.c(109): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+  		if (z < TAN_MAP_RES)
+..\bsp\boards\bsp_sin_cos_atan_sqrt.c(113): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+  		alpha = z * (REAL) TAN_MAP_SIZE - .5;
+..\bsp\boards\bsp_sin_cos_atan_sqrt.c(125): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+  			if (x >= 0.0) { /* -45 -> 45 */
+..\bsp\boards\bsp_sin_cos_atan_sqrt.c(126): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+  				if (y >= 0.0)
+..\bsp\boards\bsp_sin_cos_atan_sqrt.c(133): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+  				if (y >= 0.0)
+..\bsp\boards\bsp_sin_cos_atan_sqrt.c(141): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+  			if (y >= 0.0) { /* 45 -> 135 */
+..\bsp\boards\bsp_sin_cos_atan_sqrt.c(143): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+  				if (x >= 0.0)
+..\bsp\boards\bsp_sin_cos_atan_sqrt.c(150): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+  				if (x >= 0.0)
+..\bsp\boards\bsp_sin_cos_atan_sqrt.c(215): warning:  #68-D: integer conversion resulted in a change of sign
+  		flag = -1;
+..\bsp\boards\bsp_sin_cos_atan_sqrt.c(226): warning:  #68-D: integer conversion resulted in a change of sign
+  		flag = -1;
+..\bsp\boards\bsp_sin_cos_atan_sqrt.c: 13 warnings, 0 errors
+compiling usbd_core.c...
+compiling usbd_ioreq.c...
+compiling BMI088Middleware.c...
+compiling bsp_can.c...
+compiling usbd_ctlreq.c...
+compiling usbd_cdc.c...
+compiling bsp_pid.c...
+..\bsp\boards\bsp_pid.c(181): warning:  #223-D: function "memset" declared implicitly
+      memset(str, 0, sizeof(feedforward_control_t));
+..\bsp\boards\bsp_pid.c: 1 warning, 0 errors
+compiling transfer_function.c...
+compiling BMI088driver.c...
+compiling essemi_swd_print_printf.c...
+compiling essemi_swd_print.c...
+compiling user_lib.c...
+..\Components\user_lib.c(493): warning:  #1-D: last line of file ends without a newline
+  }
+..\Components\user_lib.c: 1 warning, 0 errors
+compiling controller.c...
+compiling bsp_rc.c...
+compiling bsp_dwt.c...
+compiling CAN_transmit.c...
+..\application\CAN_transmit.c(270): warning:  #1-D: last line of file ends without a newline
+  }	
+..\application\CAN_transmit.c: 1 warning, 0 errors
+compiling bsp_PWM.c...
+compiling CRC8_CRC16.c...
+compiling fifo.c...
+compiling remote_control.c...
+compiling referee.c...
+..\referee\referee.c(231): warning:  #111-D: statement is unreachable
+          break;
+..\referee\referee.c(264): warning:  #111-D: statement is unreachable
+          break;
+..\referee\referee.c: 2 warnings, 0 errors
+compiling CAN_receive.c...
+../branch/system.h(132): warning:  #1-D: last line of file ends without a newline
+  #endif
+../branch/decision.h(185): warning:  #1295-D: Deprecated declaration if_navi_get_new_point - give arg types
+  bool if_navi_get_new_point();
+../branch/decision.h(233): warning:  #1295-D: Deprecated declaration get_referr_data - give arg types
+  void get_referr_data();
+../branch/decision.h(253): warning:  #1295-D: Deprecated declaration judge_if_stop_navi - give arg types
+  void judge_if_stop_navi();
+../branch/decision.h(255): warning:  #1295-D: Deprecated declaration IF_decision_point_change - give arg types
+  void IF_decision_point_change();
+../branch/decision.h(260): warning:  #1295-D: Deprecated declaration If_Point_arrived - give arg types
+  void If_Point_arrived();
+../branch/decision.h(261): warning:  #1295-D: Deprecated declaration judge_if_chassis_weak - give arg types
+  void judge_if_chassis_weak();
+../branch/decision.h(285): warning:  #1295-D: Deprecated declaration decision_point_fill - give arg types
+  void decision_point_fill();
+../branch/decision.h(292): warning:  #1-D: last line of file ends without a newline
+  #endif
+../branch/system.h(118): warning:  #1295-D: Deprecated declaration judeg_if_imu_error - give arg types
+  uint8_t judeg_if_imu_error();
+../branch/system.h(132): warning:  #1-D: last line of file ends without a newline
+  #endif
+../branch/small_gimbal.h(76): warning:  #1295-D: Deprecated declaration get_gimbal_com - give arg types
+  void get_gimbal_com();
+../branch/small_gimbal.h(84): warning:  #1-D: last line of file ends without a newline
+  #endif
+../bsp/boards/bsp_transmit.h(82): warning:  #1295-D: Deprecated declaration get_referr_data - give arg types
+  void get_referr_data();
+../bsp/boards/bsp_transmit.h(83): warning:  #1295-D: Deprecated declaration reslove_referee_data - give arg types
+  void reslove_referee_data();
+../bsp/boards/bsp_transmit.h(85): warning:  #1295-D: Deprecated declaration reslove_referee_data - give arg types
+  void reslove_referee_data();
+../bsp/boards/bsp_transmit.h(93): warning:  #1-D: last line of file ends without a newline
+  #endif
+../branch/gimbal_big_yaw.h(52): warning:  #1295-D: Deprecated declaration gimbal_vision_no_mode - give arg types
+  void gimbal_vision_no_mode();
+../branch/gimbal_big_yaw.h(55): warning:  #1-D: last line of file ends without a newline
+  #endif
+..\application\CAN_receive.c(176): warning:  #188-D: enumerated type mixed with another type
+  data->vision_state=rx_data[0];
+..\application\CAN_receive.c(177): warning:  #188-D: enumerated type mixed with another type
+    data->lock_state=rx_data[1];
+..\application\CAN_receive.c(194): warning:  #1-D: last line of file ends without a newline
+  }
+..\application\CAN_receive.c: 22 warnings, 0 errors
+compiling bsp_usart.c...
+compiling referee_usart_task.c...
+compiling Sentry_cmd.c...
+../branch/decision.h(292): warning:  #1-D: last line of file ends without a newline
+  #endif
+../branch/system.h(118): warning:  #1295-D: Deprecated declaration judeg_if_imu_error - give arg types
+  uint8_t judeg_if_imu_error();
+../branch/system.h(132): warning:  #1-D: last line of file ends without a newline
+  #endif
+../branch/decision.h(185): warning:  #1295-D: Deprecated declaration if_navi_get_new_point - give arg types
+  bool if_navi_get_new_point();
+../branch/decision.h(233): warning:  #1295-D: Deprecated declaration get_referr_data - give arg types
+  void get_referr_data();
+../branch/decision.h(253): warning:  #1295-D: Deprecated declaration judge_if_stop_navi - give arg types
+  void judge_if_stop_navi();
+../branch/decision.h(255): warning:  #1295-D: Deprecated declaration IF_decision_point_change - give arg types
+  void IF_decision_point_change();
+../branch/decision.h(260): warning:  #1295-D: Deprecated declaration If_Point_arrived - give arg types
+  void If_Point_arrived();
+../branch/decision.h(261): warning:  #1295-D: Deprecated declaration judge_if_chassis_weak - give arg types
+  void judge_if_chassis_weak();
+../branch/decision.h(285): warning:  #1295-D: Deprecated declaration decision_point_fill - give arg types
+  void decision_point_fill();
+../branch/decision.h(292): warning:  #1-D: last line of file ends without a newline
+  #endif
+../branch/small_gimbal.h(76): warning:  #1295-D: Deprecated declaration get_gimbal_com - give arg types
+  void get_gimbal_com();
+../branch/small_gimbal.h(84): warning:  #1-D: last line of file ends without a newline
+  #endif
+../bsp/boards/bsp_transmit.h(82): warning:  #1295-D: Deprecated declaration get_referr_data - give arg types
+  void get_referr_data();
+../bsp/boards/bsp_transmit.h(83): warning:  #1295-D: Deprecated declaration reslove_referee_data - give arg types
+  void reslove_referee_data();
+../bsp/boards/bsp_transmit.h(85): warning:  #1295-D: Deprecated declaration reslove_referee_data - give arg types
+  void reslove_referee_data();
+../bsp/boards/bsp_transmit.h(93): warning:  #1-D: last line of file ends without a newline
+  #endif
+../branch/navigation.h(123): warning:  #1-D: last line of file ends without a newline
+  #endif
+..\Nautilus_UI\Sentry_cmd.c: 18 warnings, 0 errors
+compiling ins_task.c...
+compiling bsp_transmit.c...
+../branch/system.h(132): warning:  #1-D: last line of file ends without a newline
+  #endif
+../branch/decision.h(185): warning:  #1295-D: Deprecated declaration if_navi_get_new_point - give arg types
+  bool if_navi_get_new_point();
+../branch/decision.h(233): warning:  #1295-D: Deprecated declaration get_referr_data - give arg types
+  void get_referr_data();
+../branch/decision.h(253): warning:  #1295-D: Deprecated declaration judge_if_stop_navi - give arg types
+  void judge_if_stop_navi();
+../branch/decision.h(255): warning:  #1295-D: Deprecated declaration IF_decision_point_change - give arg types
+  void IF_decision_point_change();
+../branch/decision.h(260): warning:  #1295-D: Deprecated declaration If_Point_arrived - give arg types
+  void If_Point_arrived();
+../branch/decision.h(261): warning:  #1295-D: Deprecated declaration judge_if_chassis_weak - give arg types
+  void judge_if_chassis_weak();
+../branch/decision.h(285): warning:  #1295-D: Deprecated declaration decision_point_fill - give arg types
+  void decision_point_fill();
+../branch/decision.h(292): warning:  #1-D: last line of file ends without a newline
+  #endif
+../branch/system.h(118): warning:  #1295-D: Deprecated declaration judeg_if_imu_error - give arg types
+  uint8_t judeg_if_imu_error();
+../branch/system.h(132): warning:  #1-D: last line of file ends without a newline
+  #endif
+../branch/small_gimbal.h(76): warning:  #1295-D: Deprecated declaration get_gimbal_com - give arg types
+  void get_gimbal_com();
+../branch/small_gimbal.h(84): warning:  #1-D: last line of file ends without a newline
+  #endif
+..\bsp\boards\bsp_transmit.h(82): warning:  #1295-D: Deprecated declaration get_referr_data - give arg types
+  void get_referr_data();
+..\bsp\boards\bsp_transmit.h(83): warning:  #1295-D: Deprecated declaration reslove_referee_data - give arg types
+  void reslove_referee_data();
+..\bsp\boards\bsp_transmit.h(85): warning:  #1295-D: Deprecated declaration reslove_referee_data - give arg types
+  void reslove_referee_data();
+..\bsp\boards\bsp_transmit.h(93): warning:  #1-D: last line of file ends without a newline
+  #endif
+../branch/chassis_control.h(45): warning:  #1295-D: Deprecated declaration get_chassis_com - give arg types
+  void get_chassis_com();
+../branch/chassis_control.h(47): warning:  #1295-D: Deprecated declaration chassis_task_run - give arg types
+  void chassis_task_run();
+../branch/chassis_control.h(56): warning:  #1-D: last line of file ends without a newline
+  #endif
+../branch/gimbal_big_yaw.h(52): warning:  #1295-D: Deprecated declaration gimbal_vision_no_mode - give arg types
+  void gimbal_vision_no_mode();
+../branch/gimbal_big_yaw.h(55): warning:  #1-D: last line of file ends without a newline
+  #endif
+../branch/navigation.h(123): warning:  #1-D: last line of file ends without a newline
+  #endif
+..\bsp\boards\bsp_transmit.c(133): warning:  #550-D: variable "data_wheel"  was set but never used
+    int16_to_8 data_yaw,data_pitch,data_wheel;
+..\bsp\boards\bsp_transmit.c: 24 warnings, 0 errors
+compiling Nautilus_UI.c...
+../branch/decision.h(292): warning:  #1-D: last line of file ends without a newline
+  #endif
+../branch/system.h(118): warning:  #1295-D: Deprecated declaration judeg_if_imu_error - give arg types
+  uint8_t judeg_if_imu_error();
+../branch/system.h(132): warning:  #1-D: last line of file ends without a newline
+  #endif
+../branch/decision.h(185): warning:  #1295-D: Deprecated declaration if_navi_get_new_point - give arg types
+  bool if_navi_get_new_point();
+../branch/decision.h(233): warning:  #1295-D: Deprecated declaration get_referr_data - give arg types
+  void get_referr_data();
+../branch/decision.h(253): warning:  #1295-D: Deprecated declaration judge_if_stop_navi - give arg types
+  void judge_if_stop_navi();
+../branch/decision.h(255): warning:  #1295-D: Deprecated declaration IF_decision_point_change - give arg types
+  void IF_decision_point_change();
+../branch/decision.h(260): warning:  #1295-D: Deprecated declaration If_Point_arrived - give arg types
+  void If_Point_arrived();
+../branch/decision.h(261): warning:  #1295-D: Deprecated declaration judge_if_chassis_weak - give arg types
+  void judge_if_chassis_weak();
+../branch/decision.h(285): warning:  #1295-D: Deprecated declaration decision_point_fill - give arg types
+  void decision_point_fill();
+../branch/decision.h(292): warning:  #1-D: last line of file ends without a newline
+  #endif
+..\Nautilus_UI\Nautilus_UI.c(622): warning:  #546-D: transfer of control bypasses initialization of:
+            variable "data_pack1"  (declared at line 626)
+            variable "data_pack2"  (declared at line 645)
+            variable "data_pack5"  (declared at line 664)
+            variable "data_pack7"  (declared at line 683)
+  	switch(cnt)
+  	^
+..\Nautilus_UI\Nautilus_UI.c(706): warning:  #940-D: missing return statement at end of non-void function "UI_SendGraph" 
+  }
+..\Nautilus_UI\Nautilus_UI.c: 13 warnings, 0 errors
+linking...
+Program Size: Code=82072 RO-data=4168 RW-data=2160 ZI-data=48104  
+FromELF: creating hex file...
+"infantry_25\infantry_25.axf" - 0 Error(s), 341 Warning(s).
+Build Time Elapsed:  00:00:40

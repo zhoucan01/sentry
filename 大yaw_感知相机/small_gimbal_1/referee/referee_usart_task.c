@@ -1,0 +1,272 @@
+/*
+ * @Author: 孙羽
+ * @Date: 2023-06-05 23:52:39
+ * @LastEditors: 孙羽
+ * @LastEditTime: 2023-07-21 04:37:24
+ * @Telephone: 15235320302
+ * @QQ: 984464809
+ * @Description: 基于 RoboMaster 裁判系统串口协议附录 V1.5（20230707）
+ * 
+ * Copyright (c) 2023 by ${git_name_email}, All Rights Reserved. 
+ */
+#include "referee_usart_task.h"
+#include "main.h"
+
+#include "bsp_usart.h"
+
+#include "CRC8_CRC16.h"
+#include "fifo.h"
+#include "protocol.h"
+#include "referee.h"
+#include "usart.h"
+
+#include "cmsis_os.h"
+
+
+/**
+  * @brief          single byte upacked 
+  * @param[in]      void
+  * @retval         none
+  */
+/**
+  * @brief          单字节解包
+  * @param[in]      void
+  * @retval         none
+  */
+static void referee_unpack_fifo_data(void);
+
+ 
+extern UART_HandleTypeDef huart6;
+
+uint8_t usart6_buf[2][USART_RX_BUF_LENGHT];
+
+fifo_s_t referee_fifo;
+uint8_t referee_fifo_buf[REFEREE_FIFO_BUF_LENGTH];
+unpack_data_t referee_unpack_obj;
+
+/**
+  * @brief          referee task
+  * @param[in]      pvParameters: NULL
+  * @retval         none
+  */
+/**
+  * @brief          裁判系统任务
+  * @param[in]      pvParameters: NULL
+  * @retval         none
+  */
+void REFEREE_Task(void const *pvParameters)
+{
+	init_referee_struct_data();
+	fifo_s_init(&referee_fifo, referee_fifo_buf, REFEREE_FIFO_BUF_LENGTH);
+	usart6_init(usart6_buf[0], usart6_buf[1], USART_RX_BUF_LENGHT);
+//	Gyro_DMA_Start();
+	while (1)
+	{
+		referee_unpack_fifo_data();
+	}
+}
+
+
+/**
+  * @brief          single byte upacked 
+  * @param[in]      void
+  * @retval         none
+  */
+/**
+  * @brief          单字节解包
+  * @param[in]      void
+  * @retval         none
+  */
+void referee_unpack_fifo_data(void)
+{
+  uint8_t byte = 0;
+  uint8_t sof = HEADER_SOF;
+  unpack_data_t *p_obj = &referee_unpack_obj;
+
+  while ( fifo_s_used(&referee_fifo) )
+  {
+    byte = fifo_s_get(&referee_fifo);
+    switch(p_obj->unpack_step)
+    {
+      case STEP_HEADER_SOF:
+      {
+        if(byte == sof)
+        {
+          p_obj->unpack_step = STEP_LENGTH_LOW;
+          p_obj->protocol_packet[p_obj->index++] = byte;
+        }
+        else
+        {
+          p_obj->index = 0;
+        }
+      }break;
+      
+      case STEP_LENGTH_LOW:
+      {
+        p_obj->data_len = byte;
+        p_obj->protocol_packet[p_obj->index++] = byte;
+        p_obj->unpack_step = STEP_LENGTH_HIGH;
+      }break;
+      
+      case STEP_LENGTH_HIGH:
+      {
+        p_obj->data_len |= (byte << 8);
+        p_obj->protocol_packet[p_obj->index++] = byte;
+
+        if(p_obj->data_len < (REF_PROTOCOL_FRAME_MAX_SIZE - REF_HEADER_CRC_CMDID_LEN))
+        {
+          p_obj->unpack_step = STEP_FRAME_SEQ;
+        }
+        else
+        {
+          p_obj->unpack_step = STEP_HEADER_SOF;
+          p_obj->index = 0;
+        }
+      }break;
+      case STEP_FRAME_SEQ:
+      {
+        p_obj->protocol_packet[p_obj->index++] = byte;
+        p_obj->unpack_step = STEP_HEADER_CRC8;
+      }break;
+
+      case STEP_HEADER_CRC8:
+      {
+        p_obj->protocol_packet[p_obj->index++] = byte;
+
+        if (p_obj->index == REF_PROTOCOL_HEADER_SIZE)
+        {
+          if ( verify_CRC8_check_sum(p_obj->protocol_packet, REF_PROTOCOL_HEADER_SIZE) )
+          {
+            p_obj->unpack_step = STEP_DATA_CRC16;
+          }
+          else
+          {
+            p_obj->unpack_step = STEP_HEADER_SOF;
+            p_obj->index = 0;
+          }
+        }
+      }break;  
+      
+      case STEP_DATA_CRC16:
+      {
+        if (p_obj->index < (REF_HEADER_CRC_CMDID_LEN + p_obj->data_len))
+        {
+           p_obj->protocol_packet[p_obj->index++] = byte;  
+        }
+        if (p_obj->index >= (REF_HEADER_CRC_CMDID_LEN + p_obj->data_len))
+        {
+          p_obj->unpack_step = STEP_HEADER_SOF;
+          p_obj->index = 0;
+
+          if ( verify_CRC16_check_sum(p_obj->protocol_packet, REF_HEADER_CRC_CMDID_LEN + p_obj->data_len) )
+          {
+            referee_data_solve(p_obj->protocol_packet);
+          }
+        }
+      }break;
+
+      default:
+      {
+        p_obj->unpack_step = STEP_HEADER_SOF;
+        p_obj->index = 0;
+      }break;
+    }
+  }
+}
+
+void USART6_IRQHandler(void)
+{
+    static volatile uint8_t res;
+    if(USART6->SR & UART_FLAG_IDLE)
+    {
+        __HAL_UART_CLEAR_PEFLAG(&huart6);
+
+        static uint16_t this_time_rx_len = 0;
+
+        if ((huart6.hdmarx->Instance->CR & DMA_SxCR_CT) == RESET)
+        {
+            __HAL_DMA_DISABLE(huart6.hdmarx);
+            this_time_rx_len = USART_RX_BUF_LENGHT - __HAL_DMA_GET_COUNTER(huart6.hdmarx);
+            __HAL_DMA_SET_COUNTER(huart6.hdmarx, USART_RX_BUF_LENGHT);
+            huart6.hdmarx->Instance->CR |= DMA_SxCR_CT;
+            __HAL_DMA_ENABLE(huart6.hdmarx);
+            fifo_s_puts(&referee_fifo, (char*)usart6_buf[0], this_time_rx_len);
+        }
+        else
+        {
+            __HAL_DMA_DISABLE(huart6.hdmarx);
+            this_time_rx_len = USART_RX_BUF_LENGHT - __HAL_DMA_GET_COUNTER(huart6.hdmarx);
+            __HAL_DMA_SET_COUNTER(huart6.hdmarx, USART_RX_BUF_LENGHT);
+            huart6.hdmarx->Instance->CR &= ~(DMA_SxCR_CT);
+            __HAL_DMA_ENABLE(huart6.hdmarx);
+            fifo_s_puts(&referee_fifo, (char*)usart6_buf[1], this_time_rx_len);
+        }
+    }
+}
+
+
+/**
+  * @brief This function handles USART6 global interrupt.
+  */
+//Gyro_t Gyros;
+//uint8_t Gyro_receive_buff[48];   // 接收缓冲
+//uint8_t Gyro_receive[11];
+//int kkk=0;
+//void USART6_IRQHandler(void)
+//{
+//   static volatile uint8_t res;
+//    if(USART6->SR & UART_FLAG_IDLE)
+//    {
+//        __HAL_UART_CLEAR_PEFLAG(&huart6);
+
+//        static uint16_t this_time_rx_len = 0;
+
+//        if ((huart6.hdmarx->Instance->CR & DMA_SxCR_CT) == RESET)
+//        {
+//            __HAL_DMA_DISABLE(huart6.hdmarx);
+//            this_time_rx_len = USART_RX_BUF_LENGHT - __HAL_DMA_GET_COUNTER(huart6.hdmarx);
+//            __HAL_DMA_SET_COUNTER(huart6.hdmarx, USART_RX_BUF_LENGHT);
+//            huart6.hdmarx->Instance->CR |= DMA_SxCR_CT;
+//            __HAL_DMA_ENABLE(huart6.hdmarx);
+//            gyroscope_Handle(&Gyros,Gyro_receive_buff);
+//        }
+//        else
+//        {
+//            __HAL_DMA_DISABLE(huart6.hdmarx);
+//            this_time_rx_len = USART_RX_BUF_LENGHT - __HAL_DMA_GET_COUNTER(huart6.hdmarx);
+//            __HAL_DMA_SET_COUNTER(huart6.hdmarx, USART_RX_BUF_LENGHT);
+//            huart6.hdmarx->Instance->CR &= ~(DMA_SxCR_CT);
+//            __HAL_DMA_ENABLE(huart6.hdmarx);
+//            gyroscope_Handle(&Gyros,Gyro_receive_buff);
+//        }
+//    }
+//}
+
+//void gyroscope_Handle(Gyro_t *gyro,uint8_t *buff)
+//{
+//	if(buff[0] == 0X55&&buff[1] ==0x51 )
+//	{
+//	
+//				gyro->accel[0] = (short)(buff[3]<<8|buff[2])/32768.0*16;
+//				gyro->accel[1] = (short)(buff[5]<<8|buff[4])/32768.0*16;
+//				gyro->accel[2] = (short)(buff[7]<<8|buff[6])/32768.0*16;
+//				gyro->T = (short)(buff[9]<<8|buff[8])/340.0+36.25;
+//	}		
+//	 if(buff[11] == 0X55&&buff[12] ==0x52)
+//	{
+//				gyro->angular[0] = (short)(buff[14]<<8|buff[13])/32768.0*2000;
+//				gyro->angular[1] = (short)(buff[16]<<8|buff[15])/32768.0*2000;
+//				gyro->angular[2] = (short)(buff[18]<<8|buff[17])/32768.0*2000;
+//				gyro->T = (short)(buff[20]<<8|buff[19])/340.0+36.25;
+//	}
+//	 if(buff[22] == 0X55&&buff[23] ==0x53)		
+//	{
+//				gyro->roll  = (short)(buff[25]<<8|buff[24])/32768.0*180;
+//				gyro->pitch = (short)(buff[27]<<8|buff[26])/32768.0*180;
+//				gyro->yaw   = (short)(buff[29]<<8|buff[28])/32768.0*180;
+//				gyro->T = (short)(buff[3]<<8|buff[30])/340.0+36.25;
+//	}
+//			
+		
+//	
+//}
