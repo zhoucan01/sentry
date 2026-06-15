@@ -105,46 +105,38 @@ void get_referr_data(void)
 
 
 
-//哨兵自主决策相关指令
-uint16_t Last_HP;
-uint16_t Last_projectile_allowance_17mm;
+static uint16_t Last_HP;
+static uint16_t Last_projectile_allowance_17mm;
+
 void Sentry_cmd_decision(decision_t *mode)
 {
+    if (game_state.game_progress == 4) {
+        mode->Cmd_condition.Exchange_Projectile_Num = 0;
+        mode->Cmd_condition.If_remote_exchange_HP   = 0;
+        mode->Cmd_condition.If_Immediately_Revive   = 0;
 
-  if(game_state.game_progress==4)
-  {
-      mode->Cmd_condition.Exchange_Projectile_Num=0;
-      mode->Cmd_condition.If_remote_exchange_HP=0;
-      mode->Cmd_condition.If_Immediately_Revive=0;
-      
-      if(robot_status.current_HP==0&&Last_HP>0)
-      {
-        mode->Cmd_condition.Die_cnt++;
-      }
-      
+        if (robot_status.current_HP == 0 && Last_HP > 0) {
+            mode->Cmd_condition.Die_cnt++;
+        }
+        mode->Cmd_condition.If_revive = 1;
+        mode->Cmd_condition.Exchange_Projectile_Num = 0;
 
-      mode->Cmd_condition.If_revive=1;
-      //裁判系统响应了哨兵的自主买弹
+        Sentry_Cmd_Fill(&Sentry_cmd_send,
+            mode->Cmd_condition.If_revive,
+            mode->Cmd_condition.If_Immediately_Revive,
+            mode->Cmd_condition.Exchange_Projectile_Num,
+            mode->Cmd_condition.If_remote_exchange_HP);
 
-      mode->Cmd_condition.Exchange_Projectile_Num=0;
-      
-      Sentry_Cmd_Fill(&Sentry_cmd_send,mode->Cmd_condition.If_revive,mode->Cmd_condition.If_Immediately_Revive,
-                        mode->Cmd_condition.Exchange_Projectile_Num,mode->Cmd_condition.If_remote_exchange_HP);
-      
-      Last_HP=robot_status.current_HP;
-      Last_projectile_allowance_17mm=projectile_allowance.projectile_allowance_17mm;
-      
-      
-  }
-  else 
-  {
-    memset(&mode->Cmd_condition,0,sizeof(Cmd_condition_t));
-    Sentry_Cmd_Fill(&Sentry_cmd_send,mode->Cmd_condition.If_revive,mode->Cmd_condition.If_Immediately_Revive,
-                        mode->Cmd_condition.Exchange_Projectile_Num,mode->Cmd_condition.If_remote_exchange_HP);
-  }
-  
-  
-
+        Last_HP = robot_status.current_HP;
+        Last_projectile_allowance_17mm = projectile_allowance.projectile_allowance_17mm;
+    } else {
+        memset(&mode->Cmd_condition, 0, sizeof(Cmd_condition_t));
+        Sentry_Cmd_Fill(&Sentry_cmd_send,
+            mode->Cmd_condition.If_revive,
+            mode->Cmd_condition.If_Immediately_Revive,
+            mode->Cmd_condition.Exchange_Projectile_Num,
+            mode->Cmd_condition.If_remote_exchange_HP);
+    }
 }
 
 
@@ -205,106 +197,82 @@ uint8_t last_decision_point;
 
 void judge_if_close_to_enemy_out(Judge_condition_t *mode)
 {
-  if((fabs(navigation_rx.current_x-navigation_tx.navi_set_x_pos)<1.5
-   &&fabs(navigation_rx.current_y-navigation_tx.navi_set_y_pos)<1.5)
- ||mode->IF_Arrived==1)
-   {
-     mode->If_close_to_enemy_out=1;
-   }
-   else mode->If_close_to_enemy_out=0;
+    if ((fabsf(navigation_rx.current_x - navigation_tx.navi_set_x_pos) < 1.5f
+      && fabsf(navigation_rx.current_y - navigation_tx.navi_set_y_pos) < 1.5f)
+      || mode->IF_Arrived == 1) {
+        mode->If_close_to_enemy_out = 1;
+    } else {
+        mode->If_close_to_enemy_out = 0;
+    }
 }
 
-void judge_if_keyboard_disable(decision_t *mode)//判断是否一键失能
+void judge_if_keyboard_disable(decision_t *mode)
 {
-   if(if_update==1&&map_command.cmd_keyboard=='D')
-   {
-     mode->keyboard_disable=1;     
-   }
-   else if(if_update==1&&map_command.cmd_keyboard=='W')
-   {
-     mode->keyboard_disable=0;
-   }
+    if (if_update == 1 && map_command.cmd_keyboard == 'D') {
+        mode->keyboard_disable = 1;
+    } else if (if_update == 1 && map_command.cmd_keyboard == 'W') {
+        mode->keyboard_disable = 0;
+    }
 }
-
-void sentry_test_decision(decision_t *mode)
-{
-  if(mode->Judge_condition.IF_HP_Less_100)
-  {
-    mode->point=WE_DEPOT_POINT;
-  }
-  else 
-  {
-    mode->point=CENTRL_HIGH_POINT;  
-  }
-}
-
-int get_clear_count=0;
-//uint8_t navi_state_get;
-uint8_t if_navi_receive=0;
-int rx_point_lose;
 
 void decision_point_chose(decision_t *mode)
 {
+    /* 云台手标点 → 强制切到空中模式 */
+    if (if_update == 1) {
+        mode->decision_mode = air_control;
+        judge_if_keyboard_disable(mode);
+    }
 
-//  static uint8_t last_point;
-  if(if_update==1)//响应云台手点位
-  {
-    mode->decision_mode=air_control;
-    
-       // 判断是否一键失能
-    judge_if_keyboard_disable(mode);
-//    if_update=0;
-  }
-  
-  if(if_update==1&&if_map_correct==1)
-  {
-    map_control_fill(mode);
-  }
-  
- //决策变换后将点位初始化
-  if(mode->decision_mode!=mode->last_decision_mode)
-  {
-    mode->last_decision_mode=mode->decision_mode;
-    mode->point=INIT_PACK_POINT;
-  }
-  
-  sentry_test_decision(mode);
-  
-  //点位决策
-  
+    if (if_update == 1 && if_map_correct == 1) {
+        map_control_fill(mode);
+    }
+
+    /* 决策模式切换时重置起点 */
+    if (mode->decision_mode != mode->last_decision_mode) {
+        mode->last_decision_mode = mode->decision_mode;
+        mode->point = INIT_PACK_POINT;
+    }
+
+    /* ===== 根据决策模式分发 ===== */
+    switch (mode->decision_mode) {
+    case extreme:      sentry_extreme_decision(mode);      break;
+    case conservative: sentry_conservative_decision(mode); break;
+    case patrol:       sentry_patrol_decision(mode);       break;
+    case flying:       sentry_flying_decision(mode);       break;
+    case protect:      sentry_protect_decision(mode);      break;
+    case air_control:  sentry_air_control_decision(mode);  break;
+    default:           sentry_test_decision(mode);         break;
+    }
 }
 
 
 
 
+void sentry_test_decision(decision_t *mode)
+{
+    mode->point = mode->Judge_condition.IF_HP_Less_100
+        ? WE_DEPOT_POINT : CENTRL_HIGH_POINT;
+}
+
 void sentry_air_control_decision(decision_t *mode)
 {
-  switch (mode->point)
-   {
-      case MANUAL_POINT:
-      {
-         if(mode->Judge_condition.IF_HP_Less_100==1||mode->Judge_condition.If_get_allow_17==1)
-        {
-          mode->point=WE_DEPOT_POINT;
+    switch (mode->point) {
+    case MANUAL_POINT:
+        if (mode->Judge_condition.IF_HP_Less_100 == 1
+            || mode->Judge_condition.If_get_allow_17 == 1) {
+            mode->point = WE_DEPOT_POINT;
         }
         break;
-      }
-      case WE_DEPOT_POINT:
-      {
-      
-        if((mode->Judge_condition.IF_Arrived==1&&mode->Judge_condition.IF_HP_recover==1))
-        {
-           mode->point=MANUAL_POINT;
+    case WE_DEPOT_POINT:
+        if (mode->Judge_condition.IF_Arrived == 1
+            && mode->Judge_condition.IF_HP_recover == 1) {
+            mode->point = MANUAL_POINT;
         }
         break;
-      }
-      default:
-      {
-      kmnjnk++;
-        mode->point=MANUAL_POINT;
+    default:
+        mode->point = MANUAL_POINT;
         break;
-      }
-   }
+    }
 }
 
 
