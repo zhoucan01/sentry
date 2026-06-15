@@ -1,92 +1,122 @@
-# 哨兵机器人底盘控制系统
+# 哨兵机器人全栈控制系统
 
-> RoboMaster 哨兵机器人全向舵轮底盘运动控制固件
+> RoboMaster 哨兵机器人 — 底盘 + 双云台 + 导航决策 完整固件
 
-## 项目简介
+## 项目概述
 
-基于 STM32F407 + FreeRTOS 的全向舵轮底盘控制系统，实现四轮独立转向（舵角控制）+ 独立驱动（轮速控制）的完整运动学解算、PID 控制与功率管理。
+本仓库包含一台哨兵机器人的 **全部嵌入式固件**，由三个独立 STM32F407 工程组成，分别负责底盘运动控制、大Yaw云台感知、小云台射击控制，三者通过 CAN 总线协同工作。
 
-## 硬件平台
+```
+┌─────────────────────────────────────────────────────┐
+│                    哨兵机器人                         │
+│                                                      │
+│  ┌──────────────┐  ┌──────────────┐  ┌────────────┐ │
+│  │ steer_chassis│  │ 大yaw_感知相机│  │小头儿子_    │ │
+│  │   底盘控制    │  │ 导航+视觉云台 │  │ 感知相机    │ │
+│  │  (STM32F407) │  │ (STM32F407)  │  │ (STM32F407) │ │
+│  └──────┬───────┘  └──────┬───────┘  └─────┬──────┘ │
+│         │                 │                 │         │
+│         └────────┬────────┴────────┬────────┘         │
+│                  │    CAN Bus     │                   │
+│           ┌──────┴──────┐  ┌──────┴──────┐           │
+│           │ 4×M3508 底盘│  │ 4×6020 舵机 │           │
+│           └─────────────┘  └─────────────┘           │
+└─────────────────────────────────────────────────────┘
+```
 
+---
+
+## 工程一：`steer_chassis` — 底盘舵轮运动控制
+
+### 功能
+全向舵轮底盘运动学解算、PID 控制、功率限制、里程计观测
+
+### 硬件
 | 组件 | 型号 | 数量 |
 |------|------|------|
 | 主控 | STM32F407IGHx | 1 |
-| 底盘电机 | M3508 直流无刷 | 4 |
-| 舵机电机 | 6020 直流无刷 | 4 |
-| IMU | BMI088 | 1 |
+| 底盘电机 | M3508 | 4 |
+| 舵机电机 | 6020 | 4 |
 | 超电 | 超级电容模块 | 1 |
 
-## 软件架构
-
+### 控制流水线 (1ms)
 ```
-steer_chassis/
-├── Core/              # STM32 HAL 层 + FreeRTOS 配置
-├── branch/            # 核心业务逻辑
-│   ├── system.c/h         # 系统任务 + 模式调度 + 角度解算
-│   ├── sentry_chassis.c/h # 底盘运动控制（速度解算/逆运动学/功率限制/PID）
-│   ├── Odometer.c/h       # 里程计观测器（线性卡尔曼滤波 + RMS打滑检测）
-│   ├── motor.c/h          # 电机CAN通信
-│   └── SuperCAP.c/h       # 超级电容管理
-├── bsp/boards/        # 板级外设驱动
-│   ├── bsp_transmit.c/h   # 串口收发（上位机通信协议）
-│   ├── bsp_pid.c/h        # PID控制器
-│   └── bsp_can.c/h        # CAN总线驱动
-├── application/       # 应用层模块
-│   ├── CAN_receive.c/h    # CAN接收（电机反馈解析）
-│   └── ins_task.c/h       # 惯导任务
-└── MDK-ARM/           # Keil MDK-ARM V5 工程
+坐标系旋转 → 逆运动学 → 舵角(atan2+劣弧) → 速度合成 → PID → 功率限制
 ```
 
-## 控制流水线
+### 核心文件
+| 文件 | 功能 |
+|------|------|
+| `branch/system.c/h` | 系统任务、模式调度、角度解算、离线检测 |
+| `branch/sentry_chassis.c/h` | 运动控制核心：速度解算/逆运动学/功率限制/PID |
+| `branch/Odometer.c/h` | 里程计观测器：线性卡尔曼滤波 + RMS打滑检测 |
+| `branch/motor.c/h` | 电机 CAN 通信（正常/错误帧切换） |
+| `branch/SuperCAP.c/h` | 超级电容管理 |
+| `bsp/boards/bsp_transmit.c/h` | 串口协议：上位机指令解析 + 状态回传 |
+| `bsp/boards/bsp_pid.c/h` | PID 控制器 |
 
-每 1ms 执行一次完整的控制循环：
+---
 
-```
-[1] 坐标系旋转    → 云台速度 → 底盘坐标系
-[2] 逆运动学分解  → 底盘 vx/vy/ω → 四轮 vx/vy
-[3] 舵角解算      → atan2 + 劣弧优化 + 编码器转换
-[4] 速度合成修正  → 方向修正 + cos? 衰减
-[5] PID 计算      → 舵角位置环 → 舵速环 → 轮速环
-[6] 功率限制      → 超电自适应功率分配
-```
+## 工程二：`大yaw_感知相机` — 导航决策 + 视觉云台
 
-## 核心算法
+### 功能
+哨兵导航决策、大 Yaw 轴云台控制、视觉追踪、哨兵行为状态机
 
-### 里程计观测器 (`Odometer.c`)
+### 核心文件
+| 文件 | 功能 |
+|------|------|
+| `branch/decision.c/h` | 哨兵电控决策：巡逻/追击/回防状态机 |
+| `branch/navigation.c/h` | 导航信息处理：坐标系转换、路径规划 |
+| `branch/gimbal_big_yaw.c/h` | 大 Yaw 云台 PID 控制（角度环 + 速度环） |
+| `branch/chassis_control.c/h` | 底盘控制指令生成 |
+| `branch/omni.c/h` | 全向移动解算 |
+| `branch/small_gimbal.c/h` | 小云台联动控制 |
+| `branch/system.c/h` | 大 Yaw 系统任务调度 |
 
-基于线性卡尔曼滤波器的底盘速度估计：
+### 关键特性
+- **导航坐标系转换**：红/蓝方自动识别，坐标变换
+- **决策状态机**：巡逻 → 发现目标 → 追击 → 丢失 → 回防
+- **视觉追踪**：支持 Nautilus_Vision 视觉模块
+- **USB 虚拟串口**：与上位机/迷你PC通信
 
-- **状态**: $x = [v_x, v_y, \omega]^T$
-- **测量**: 四轮编码器轮速
-- **自适应噪声**: RMS 残差反馈 → 打滑轮子自动降权
-- **参考论文**: Batch-LIWO, 式 3.84~3.96
+---
 
-### 功率限制 (`sentry_chassis.c`)
+## 工程三：`小头儿子_感知相机` — 小云台 + 射击控制
 
-电机功率模型反解：
+### 功能
+小云台 Yaw/Pitch 双轴控制、摩擦轮射击、弹道补偿
 
-$$P = k_p \cdot I \cdot \omega + k_w \cdot \omega^2 + k_i \cdot I^2 + C$$
+### 核心文件
+| 文件 | 功能 |
+|------|------|
+| `small_gimbal_2/branch/gimbal.c/h` | 小云台 Yaw/Pitch PID 控制 |
+| `small_gimbal_2/branch/shoot.c/h` | 摩擦轮射击控制（单发/连发） |
+| `small_gimbal_2/branch/system.c/h` | 小云台系统任务调度 |
+| `small_gimbal_2/branch/trig.c/h` | 三角函数快速计算 |
+| `small_gimbal_2/branch/motor.c/h` | 电机 CAN 通信 |
 
-超限时等比例缩放，通过二次方程反解目标电流。
+### 关键特性
+- **双轴云台**：Yaw + Pitch 级联 PID
+- **射击控制**：拨弹 + 摩擦轮调速
+- **视觉联动**：配合 Nautilus_Vision 自瞄
+
+---
 
 ## 编译
 
-- **IDE**: Keil MDK-ARM V5
-- **编译器**: ARM Compiler V5.06 update 7
-- **目标**: STM32F407IGHx
+| 项目 | IDE | 编译器 | 目标 |
+|------|-----|--------|------|
+| 全部 | Keil MDK-ARM V5 | ARM Compiler V5.06u7 | STM32F407IGHx |
 
-编译状态：**0 Error, 0 Warning** ?
+---
 
-## 分支说明
+## 优化记录 (`zc_withai` 分支)
 
-| 分支 | 说明 |
+| 文件 | 改动 |
 |------|------|
-| `main` | 原始代码 |
-| `zc_withai` | AI 辅助优化版本（代码美化 + 重构） |
+| `steer_chassis/branch/sentry_chassis.c` | 全面重构：提取 `RotateSpeedToBase`/`CalcMotorPower`/`ApplyPowerLimit`/`ResolveSteerShortArc` 四个公共函数，消除 ~200 行重复代码 |
+| `steer_chassis/branch/system.c` | `get_diff_angle` 从 40 行 → 10 行，`NormAngle` 归一化 |
+| `steer_chassis/branch/Odometer.c` | 补充 `Odometer_run` FreeRTOS 任务入口 |
+| 全部头文件 | Doxygen 注释，`(void)` 规范化，消除编译警告 |
+| **效果** | 49→0 Warning，代码段减少 ~20% |
 
-## 优化记录 (`zc_withai`)
-
-- `sentry_chassis.c`: 提取 4 个公共辅助函数，消除 ~200 行重复代码
-- `system.c`: `get_diff_angle` 从 40 行 → 10 行，使用 `NormAngle` 归一化
-- `Odometer.c`: 补充 `Odometer_run` FreeRTOS 任务入口
-- 消除所有编译警告（49 → 0），代码段减少 ~20%
