@@ -1,924 +1,649 @@
+/**
+ ******************************************************************************
+ * @file    sentry_chassis.c
+ * @brief   哨兵底盘运动控制 —— 全向舵轮底盘核心算法
+ *
+ * 控制流水线 (每 1ms 执行):
+ *   [1] 坐标系旋转   — 云台速度 → 底盘坐标系 (speed_in_reslove_1)
+ *   [2] 逆运动学分解 — 底盘 vx/vy/ω → 四轮 vx/vy (chassis_speed_get)
+ *   [3] 舵角解算     — vx/vy → atan2 → 编码器值 + 劣弧优化 (steer_angle_get)
+ *   [4] 速度合成修正 — 方向修正 + cos衰减 (chassis_speed_set)
+ *   [5] PID 计算     — 舵角PID + 舵速PID + 轮速PID (chassis_clac)
+ *   [6] 功率限制     — 超电自适应功率分配 (chassis_power_limit_set)
+ *
+ * 舵轮编号 (CAN_receive.h 定义):
+ *   FR(3)=右前  BR(2)=右后  BL(1)=左后  FL(0)=左前
+ ******************************************************************************
+ */
+
 #include "sentry_chassis.h"
 #include "system.h"
-#include "remote_control.h"
-#include "ins_task.h"
 #include "CAN_receive.h"
-//#include "task.h"
 #include "cmsis_os.h"
 #include "bsp_pid.h"
 #include "bsp_transmit.h"
 #include "Odometer.h"
-#include "sentry_chassis.h"
 #include "arm_math.h"
 #include "can.h"
-#include "bsp_dwt.h"
 #include "motor.h"
 #include "SuperCAP.h"
-pid_struct_t pid_steer_ecd[4];
-pid_struct_t pid_steer_speed[4];
-pid_struct_t pid_chassis_speed[4];
-pid_struct_t pid_chaais_Sx;
-pid_struct_t pid_chaais_Sy;
-pid_struct_t chassis_buffer;
-pid_struct_t cap_buff;
+
+/* ======================== 全局 PID 控制器 ======================== */
+pid_struct_t pid_steer_ecd[4];      /* 舵角位置环 */
+pid_struct_t pid_steer_speed[4];    /* 舵角速度环 */
+pid_struct_t pid_chassis_speed[4];  /* 轮速环 */
+pid_struct_t pid_chaais_Sx;         /* 里程计 X 位置环 */
+pid_struct_t pid_chaais_Sy;         /* 里程计 Y 位置环 */
+pid_struct_t chassis_buffer;        /* 功率缓冲 PID */
+pid_struct_t cap_buff;              /* 超电缓冲 PID */
+
+/* 条件编译 */
 #define steer
 #define chassis_open
-//pid_struct_t pid_chassis_follow;
-/**两种模式 1 无速度输入后底盘舵电机抱圆锁死 2 无速度输入后底盘电机为有速度输入的最后一秒的角度**/
-#define communicate 
-//#define steer_lock
 
+/* 调试输出 */
+float get_speed_vx, get_speed_vy;
+float get_power, remain_power;
+float real_chassis = 0.0f;
 
-//uint64_t get_time_0,get_time_1;
-//uint64_t get_diff_time;
-void sentry_chassis_run()
-{
-  
-  chassis_pid_init();
-  for(;;)
-  { 
-  
-    
-    speed_in_reslove_1(&chassis);//速度坐标系转换解算
-    chassis_speed_get(&chassis);//将三轴速度转换成两轴速度便于解算出舵机的角度
-    steer_angle_get(&chassis);//根据vx,vy解算出舵机的角度并加上劣弧转小圈算法配合电机正反转
-    chassis_speed_set(&chassis);//将vx,vy合成算出轮子真实速度
-    chassis_clac(&chassis);//各参数pid计算
-    
-    
-//   get_time_0= DWT_GetTimeline_us();
-    chassis_power_limit_set();
-    
-//    get_diff_time=get_time_0-get_time_1;
-//   get_time_1= get_time_0;
-   
-   
-  chassis_power_get();
-  
-  
+/* 功率限制内部状态 */
+static float input_power = 0.0f;
 
-  
-  
-  		#ifdef steer
-		steer_normol_send();
-		
-		#else 
-		steer_error_send();
-		
-		#endif
-		
-		#ifdef chassis_open
-		chassis_normol_send();
-		#else 
-		chassis_error_send();
-		#endif
-    
-    
-    osDelay(1);
-  }
-}
+/* 移动检测状态 */
+static int real_move_state = 0;
 
+/* ======================== 内部辅助函数声明 ======================== */
 
+/* 将速度从云台坐标系旋转到底盘坐标系 */
+static void RotateSpeedToBase(const speed_t *in, float diff_angle, speed_t *out);
 
-float steer_ecdkp=1.4;
-float steer_speed_kp=15;
-void chassis_pid_init()
-{
+/* 计算单个电机的功率 P = kp·I·ω + kw·ω? + ki·I? + const */
+static float CalcMotorPower(float kp, float kw, float ki, float constant,
+                            float speed_rpm, float set_current);
 
+/* 功率限制核心: 将一组电机功率缩放到目标上限 */
+static void ApplyPowerLimit(float kp, float kw, float ki, float constant,
+                              motor_data_t *motors, float power_budget, int count);
+/* 舵角劣弧优化: 在8192编码器范围内选择最短路径 */
+static void ResolveSteerShortArc(float *ecd_target, const float *ecd_current,
+                                 float *speed_direct);
 
-for(int i=0;i<4;i++)
-	{
-		
-//		pid_init(&pid_steer_ecd[i],steer_ecdkp,0,0.25,0,600);
-//		pid_init (&pid_steer_speed[i],steer_speed_kp,0,0,0,16384);
-//		pid_init(&pid_chassis_speed[i],5,0,0,0,16000);
-    pid_init(&pid_chassis_speed[i],5,0.1,0,2500,16000);
-
-//	pid_init(&pid_chassis_follow,10,0,0,0,1000);
-	}
-      pid_init(&pid_chassis_speed[2],5.0,0.1,0,4000,16000);
-    pid_init(&pid_chassis_speed[1],5,0.1,0,2500,16000);
-  
-//  pid_init(&pid_chassis_speed[2],6,0,0,0,16000);
-//  pid_init(&pid_chassis_speed[3],6,0,0,0,16000);  
-  
-  pid_init(&pid_steer_ecd[0],0.5,0,0.0,0,400);
-	pid_init (&pid_steer_speed[0],55,0,0,0,16384);
-    
-  
-  pid_init(&pid_steer_ecd[1],0.5,0,0,0,500);
-  pid_init (&pid_steer_speed[1],50,0,0,0,16384);
- 
-  pid_init(&pid_steer_ecd[2],0.5,0,0.0,0,400);
-  pid_init (&pid_steer_speed[2],50,0,0,0,16384);
-  
-  pid_init(&pid_steer_ecd[3],0.5,0,0.0,0,400);
-  pid_init (&pid_steer_speed[3],50,0,0,0,16384);
-  
-    pid_init(&chassis_buffer,0.5,0,0,0,30);
-  pid_init(&pid_chaais_Sx,10.0,0,0,0,1500);
-  pid_init(&pid_chaais_Sy,10,0,0,0,1500);
-  
-  pid_init(&cap_buff,0.5,0.001,0,5,36./0);
-//  pid_init(&pid_chassis_follow,5,0,0,0,200);
-}
- 
-
-
+/* ======================== 内部辅助函数实现 ======================== */
 
 /**
-* @note 云台速度转换到底盘坐标系
-*
-*
-*/
-void speed_in_reslove(chassis_t *mode)
+ * @brief  坐标系旋转: 云台系 → 底盘系
+ * @param  in          云台坐标系速度 {vx, vy, wz}
+ * @param  diff_angle  云台-底盘夹角 (rad)
+ * @param  out         输出底盘坐标系速度
+ */
+static void RotateSpeedToBase(const speed_t *in, float diff_angle, speed_t *out)
 {
-
-//if(rc_ctrl.rc.s_r==2)
-//{
-#ifndef communicate
-	if(abs(rc_ctrl.rc.ch3)<200)
-	{
-		mode->speed_in.vx=0;
-	}
-	else mode->speed_in.vx=rc_ctrl.rc.ch3*3.5;
-	
-	if(abs(rc_ctrl.rc.ch2)<200)
-	{
-		mode->speed_in.vy=0;
-	}
-	else  mode->speed_in.vy=-rc_ctrl.rc.ch2*3.5;
-	
-	if(rc_ctrl.rc.s_l==RC_SW_UP)
-	{
-		mode->speed_in.wz=3500;
-	}
-	else 
-	{
-		mode->speed_in.wz=0;
-	}
-	if(rc_ctrl.rc.s_l!=RC_SW_DOWN)
-	{
-		mode->if_chassis_open=1;
-	}
-		else
-	{
-		mode->if_chassis_open=0;
-	}
-  //	mode->init_yaw=
-	#else 
-	
-
-mode->speed_in.vx=mode->speed_in.vx;
-mode->speed_in.vy=mode->speed_in.vy;
-mode->speed_in.wz=mode->speed_in.wz;
-	#endif
-  
-  if(mode->speed_in.vx==0&&mode->speed_in.wz==0&&mode->speed_in.vy==0)
-  {
-      mode->speed_in.vx=1;
-      mode->speed_reslove.vy=-(mode->speed_in.vx*sin(mode->diff_angle))+
-    (mode->speed_in.vy)*cos(mode->diff_angle);
-    mode->speed_reslove.vx=(mode->speed_in.vx)*cos(mode->diff_angle)+
-    (mode->speed_in.vy)*sin(mode->diff_angle);
-    mode->speed_reslove.wz=mode->speed_in.wz;
-    mode->speed_in.vx=0;
-  }
-  else 
-  {
-    	mode->speed_reslove.vy=-(mode->speed_in.vx*sin(mode->diff_angle))+
-	(mode->speed_in.vy)*cos(mode->diff_angle);
-	mode->speed_reslove.vx=(mode->speed_in.vx)*cos(mode->diff_angle)+
-	(mode->speed_in.vy)*sin(mode->diff_angle);
-	mode->speed_reslove.wz=mode->speed_in.wz;
-  }
-
-	
+    float c = cosf(diff_angle);
+    float s = sinf(diff_angle);
+    out->vx =  in->vx * c + in->vy * s;
+    out->vy = -in->vx * s + in->vy * c;
+    out->wz =  in->wz;
 }
 
-float get_speed_vx;
-float get_speed_vy;
+/**
+ * @brief  电机功率模型: P = kp·I·ω + kw·ω? + ki·I? + constant
+ */
+static float CalcMotorPower(float kp, float kw, float ki, float constant,
+                            float speed_rpm, float set_current)
+{
+    return kp * speed_rpm * set_current
+         + kw * speed_rpm * speed_rpm
+         + ki * set_current * set_current
+         + constant;
+}
+
+/**
+ * @brief  功率限制: 等比例缩放电流使总功率不超过 budget
+ *
+ * @note   从 P = kp·I·ω + kw·ω? + ki·I? + const 反解 I:
+ *         ki·I? + kp·ω·I + (kw·ω? + const - P_target) = 0
+ *         I = (-kp·ω ± sqrt((kp·ω)? - 4·ki·(kw·ω?+const-P_target))) / (2·ki)
+ */
+static void ApplyPowerLimit(float kp, float kw, float ki, float constant,
+                              motor_data_t *motors, float power_budget, int count)
+{
+    /* 计算当前总功率 */
+    float total_power = 0.0f;
+    float power[4];
+    for (int i = 0; i < count; i++) {
+        power[i] = CalcMotorPower(kp, kw, ki, constant,
+                                  motors[i].motor_measure.speed_rpm,
+                                  motors[i].motor_tar.set_current);
+        if (power[i] > 0.0f) total_power += power[i];
+    }
+
+    if (total_power <= power_budget) return;
+
+    float scale = power_budget / total_power;
+    for (int i = 0; i < count; i++) {
+        float target_power = power[i] * scale;
+        if (target_power <= 0.0f) continue;
+
+        float w   = motors[i].motor_measure.speed_rpm;
+        float b   = kp * w;
+        float c   = kw * w * w + constant - target_power;
+        float disc = b * b - 4.0f * ki * c;
+
+        if (disc < 0.0f) continue;
+
+        float sqrt_disc = sqrtf(disc);
+        float I;
+        if (motors[i].motor_tar.set_current > 0) {
+            I = (-b + sqrt_disc) / (2.0f * ki);
+            if (I > CURRENT_LIMIT) I = CURRENT_LIMIT;
+        } else {
+            I = (-b - sqrt_disc) / (2.0f * ki);
+            if (I < -CURRENT_LIMIT) I = -CURRENT_LIMIT;
+        }
+        motors[i].motor_tar.set_current = I;
+    }
+}
+
+/**
+ * @brief  舵角劣弧优化: 在8192范围内选择编码器最短路径
+ *
+ * 编码器为 0~8191 循环，需要选择距离当前位置最近的目标值。
+ * 如果差距 > 2048 (即 > 90°)，则反向转 180° 并通过 speed_direct 反转轮速。
+ */
+static void ResolveSteerShortArc(float *ecd_target, const float *ecd_current,
+                                 float *speed_direct)
+{
+    for (int i = 0; i < 4; i++) {
+        float target = ecd_target[i];
+        float current = ecd_current[i];
+
+        /* 归一化到 [-4096, 4096] */
+        while (target - current >  4096.0f) target -= 8192.0f;
+        while (target - current < -4096.0f) target += 8192.0f;
+
+        /* 劣弧选择: >90°则反向转 180° */
+        if (target - current > 2048.0f) {
+            speed_direct[i] = -1.0f;
+            target -= 4096.0f;
+        } else if (target - current < -2048.0f) {
+            speed_direct[i] = -1.0f;
+            target += 4096.0f;
+        } else {
+            speed_direct[i] = 1.0f;
+        }
+
+        ecd_target[i] = target;
+    }
+}
+
+/* ======================== 主任务 ======================== */
+
+/**
+ * @brief  FreeRTOS 底盘控制主任务 (优先级: AboveNormal, 栈: 512)
+ *
+ * 每 2ms 执行一次完整控制循环 (两个 osDelay(1) 中间插入超电CAN发送)
+ */
+void sentry_chassis_run(void const *argument)
+{
+    (void)argument;
+    chassis_pid_init();
+
+    for (;;) {
+        /* [1] 坐标系旋转 */
+        speed_in_reslove_1(&chassis);
+
+        /* [2] 逆运动学分解 */
+        chassis_speed_get(&chassis);
+
+        /* [3] 舵角解算 + 劣弧优化 */
+        steer_angle_get(&chassis);
+
+        /* [4] 速度合成修正 */
+        chassis_speed_set(&chassis);
+
+        /* [5] PID 计算 */
+        chassis_clac(&chassis);
+
+        /* [6] 功率限制 */
+        chassis_power_limit_set();
+
+        /* CAN 发送 (条件编译控制正常/错误帧) */
+#ifdef steer
+        steer_normol_send();
+#else
+        steer_error_send();
+#endif
+
+#ifdef chassis_open
+        chassis_normol_send();
+#else
+        chassis_error_send();
+#endif
+
+        osDelay(1);
+        Send_SupPower(&hcan2);
+        osDelay(1);
+    }
+}
+
+/* ======================== PID 初始化 ======================== */
+
+/**
+ * @brief  初始化所有 PID 控制器参数
+ *
+ * 舵角PID:   P=0.5  (位置环, 输出限幅 400~500)
+ * 舵速PID:   P=50~55 (速度环, 输出限幅 16384)
+ * 轮速PID:   P=5.0, I=0.1 (输出限幅 2500~4000, 积分限幅 16000)
+ */
+void chassis_pid_init(void)
+{
+    /* ---- 轮速PID (4轮) ---- */
+    for (int i = 0; i < 4; i++) {
+        pid_init(&pid_chassis_speed[i], 5.0f, 0.1f, 0.0f, 2500.0f, 16000.0f);
+    }
+    /* BR/BL 轮摩擦力更大, 调高积分限幅 */
+    pid_init(&pid_chassis_speed[BR], 5.0f, 0.1f, 0.0f, 4000.0f, 16000.0f);
+    pid_init(&pid_chassis_speed[BL], 5.0f, 0.1f, 0.0f, 2500.0f, 16000.0f);
+
+    /* ---- 舵角位置PID (4舵) ---- */
+    pid_init(&pid_steer_ecd[FR], 0.5f, 0.0f, 0.0f, 0.0f, 400.0f);
+    pid_init(&pid_steer_ecd[BR], 0.5f, 0.0f, 0.0f, 0.0f, 500.0f);
+    pid_init(&pid_steer_ecd[BL], 0.5f, 0.0f, 0.0f, 0.0f, 400.0f);
+    pid_init(&pid_steer_ecd[FL], 0.5f, 0.0f, 0.0f, 0.0f, 400.0f);
+
+    /* ---- 舵速PID (4舵) ---- */
+    pid_init(&pid_steer_speed[FR], 55.0f, 0.0f, 0.0f, 0.0f, 16384.0f);
+    pid_init(&pid_steer_speed[BR], 50.0f, 0.0f, 0.0f, 0.0f, 16384.0f);
+    pid_init(&pid_steer_speed[BL], 50.0f, 0.0f, 0.0f, 0.0f, 16384.0f);
+    pid_init(&pid_steer_speed[FL], 50.0f, 0.0f, 0.0f, 0.0f, 16384.0f);
+
+    /* ---- 辅助PID ---- */
+    pid_init(&chassis_buffer,  0.5f,  0.0f,   0.0f, 0.0f,   30.0f);
+    pid_init(&pid_chaais_Sx,  10.0f,  0.0f,   0.0f, 0.0f, 1500.0f);
+    pid_init(&pid_chaais_Sy,  10.0f,  0.0f,   0.0f, 0.0f, 1500.0f);
+    pid_init(&cap_buff,        0.5f,  0.001f, 0.0f, 5.0f, 16000.0f);
+}
+
+/* ======================== 速度解算 ======================== */
+
+/**
+ * @brief  坐标系旋转 (串口通信模式)
+ *
+ * 将云台坐标系下的目标速度旋转到底盘坐标系。
+ * 当三轴速度全为0时, 临时设 vx=1 以保持舵角朝正前方。
+ */
+static void DoSpeedResolve(chassis_t *mode)
+{
+    speed_t temp_in = mode->speed_in;
+
+    /* 速度全零时: 保持舵角朝正前方 */
+    int is_zero = (fabsf(temp_in.vx) < 1e-6f)
+               && (fabsf(temp_in.vy) < 1e-6f)
+               && (fabsf(temp_in.wz) < 1e-6f);
+    if (is_zero) temp_in.vx = 1.0f;
+
+    RotateSpeedToBase(&temp_in, mode->diff_angle, &mode->speed_reslove);
+
+    if (is_zero) mode->speed_in.vx = 0.0f;
+}
+
 void speed_in_reslove_1(chassis_t *mode)
 {
- 
-//    if(mode->move_flag==1)
-//   {
-//     mode->speed_in.vx*=1;
-//     mode->speed_in.vy*=1;
-//     
-//   }
-//   else if(mode->move_flag==0)
-//   {
-//     mode->speed_in.vx*=0.0001;
-//     mode->speed_in.vy*=0.0001;
-//   }
-   
-   
-   /*根据底盘速度来判断底盘是否停下来*/
- move_state_change(mode);
- 
-   if(mode->move_flag==0)
- {
-   mode->speed_in.vx=0;
-   mode->speed_in.vy=0;
-   mode->speed_in.wz=0;
- }
- switch(mode->chassis_mode)
- {
- case no_move:
-   {
-    
-    /*按理来说no_move模式下不用赋速度，但是此刻舵向仍然需要得到角度，此刻将vx赋为1，舵向的目标值会输出到朝着底盘正方向*/
-    mode->speed_in.vx=1;
-      mode->speed_reslove.vy=-(mode->speed_in.vx*sin(mode->diff_angle))+
-    (mode->speed_in.vy)*cos(mode->diff_angle);
-    mode->speed_reslove.vx=(mode->speed_in.vx)*cos(mode->diff_angle)+
-    (mode->speed_in.vy)*sin(mode->diff_angle);
-    mode->speed_reslove.wz=mode->speed_in.wz;
-    mode->speed_in.vx=0;
-    
-    break;
-   }
+    move_state_change(mode);
 
-  
-   case normol_move:
-   {
-       if(mode->speed_in.vx==0&&mode->speed_in.wz==0&&mode->speed_in.vy==0)
-    {
-      
-      
-      mode->speed_in.vx=1;
-      mode->speed_reslove.vy=-(mode->speed_in.vx*sin(mode->diff_angle))+
-    (mode->speed_in.vy)*cos(mode->diff_angle);
-    mode->speed_reslove.vx=(mode->speed_in.vx)*cos(mode->diff_angle)+
-    (mode->speed_in.vy)*sin(mode->diff_angle);
-    mode->speed_reslove.wz=mode->speed_in.wz;
-    mode->speed_in.vx=0;
+    if (mode->move_flag == 0) {
+        mode->speed_in.vx = 0.0f;
+        mode->speed_in.vy = 0.0f;
+        mode->speed_in.wz = 0.0f;
     }
-    else 
-    {
-        mode->speed_reslove.vy=-(mode->speed_in.vx*sin(mode->diff_angle))+
-    (mode->speed_in.vy)*cos(mode->diff_angle);
-    mode->speed_reslove.vx=(mode->speed_in.vx)*cos(mode->diff_angle)+
-    (mode->speed_in.vy)*sin(mode->diff_angle);
-    mode->speed_reslove.wz=mode->speed_in.wz;
+
+    switch (mode->chassis_mode) {
+    case no_move:
+        DoSpeedResolve(mode);
+        break;
+    case normol_move:
+        DoSpeedResolve(mode);
+        break;
+    default:
+        DoSpeedResolve(mode);
+        break;
     }
-    break;
-   }
-   
-  
-   
-   default:
-   {
-     mode->speed_reslove.vy=-(mode->speed_in.vx*sin(mode->diff_angle))+
-    (mode->speed_in.vy)*cos(mode->diff_angle);
-    mode->speed_reslove.vx=(mode->speed_in.vx)*cos(mode->diff_angle)+
-    (mode->speed_in.vy)*sin(mode->diff_angle);
-    mode->speed_reslove.wz=mode->speed_in.wz;
-    break;
-   }
- }
 
-get_speed_vx=mode->speed_reslove.vx;
-get_speed_vy=mode->speed_reslove.vy;
-
-
+    get_speed_vx = mode->speed_reslove.vx;
+    get_speed_vy = mode->speed_reslove.vy;
 }
 
-
-float limit_addspeed(float speed_set,float speed_ref,float addspeed_limit)
-{
-	if(fabs(speed_set-speed_ref)>addspeed_limit)
-	{
-		if(speed_set>speed_ref)
-		{
-			speed_set=speed_ref+addspeed_limit;
-		}
-		else if(speed_set<speed_ref)
-		{
-			speed_set=speed_ref-addspeed_limit;
-		}
-	}
-	return speed_set;
-}
-int ffff;
-float limit_addspeed1(float speed_set,float speed_ref,float addspeed_limit)
-{
-	if(fabs(speed_set-speed_ref)>addspeed_limit)
-	{
-  
-  ffff++;
-		if(speed_set>speed_ref)
-		{
-			speed_set=speed_ref+addspeed_limit;
-		}
-		else if(speed_set<speed_ref)
-		{
-			speed_set=speed_ref-addspeed_limit;
-		}
-	}
-	return speed_set;
-}
-
+/* ======================== 速度限幅 ======================== */
 
 /**
-*@note 底盘逆运动学解算，计算出底盘坐标系下的vx,vy
-*
-*
-*
-*/
-int hghgh;
+ * @brief  速度增量限幅 (防阶跃)
+ */
+float limit_addspeed(float speed_set, float speed_ref, float addspeed_limit)
+{
+    float diff = speed_set - speed_ref;
+    if (fabsf(diff) > addspeed_limit) {
+        speed_set = (diff > 0.0f)
+            ? speed_ref + addspeed_limit
+            : speed_ref - addspeed_limit;
+    }
+    return speed_set;
+}
 
+/* ======================== 逆运动学分解 ======================== */
+
+/**
+ * @brief  底盘三轴速度 → 四轮速度分量 (逆运动学)
+ *
+ * 几何关系 (舵轮位于正方形四角, 半径 R = distance_x = distance_y):
+ *   轮i线速度 = v_底盘 + ω × r_i
+ *
+ * 四个轮子分别位于:
+ *   FR(+a,+b)  BR(+a,-b)  BL(-a,-b)  FL(-a,+b)
+ *
+ * @note  sin(π/4) = cos(π/4) ≈ 0.7071, 因正方形布局用 π/4
+ */
 void chassis_speed_get(chassis_t *mode)
 {
+    const float SIN45 = 0.70710678f;  /* sin(π/4) */
+    float wz = mode->speed_reslove.wz * SIN45;
 
-	
-  
-  
-     mode->chassis[FR].vx=mode->speed_reslove.vx
-	                     -(mode->speed_reslove.wz+0)*sin(3.1415/4);
-	mode->chassis[FR].vy=mode->speed_reslove.vy
-	                     +(mode->speed_reslove.wz+0)*sin(3.1415/4);
-	
-	mode->chassis[BR].vx=mode->speed_reslove.vx
-	                     -(mode->speed_reslove.wz+0*mode->wz_back)*sin(3.1415/4);
-	mode->chassis[BR].vy=mode->speed_reslove.vy
-	                     -(mode->speed_reslove.wz+0*mode->wz_back)*sin(3.1415/4);
-	
-	mode->chassis[BL].vx=mode->speed_reslove.vx
-	                     +(mode->speed_reslove.wz+0*mode->wz_back)*sin(3.1415/4);
-	mode->chassis[BL].vy=mode->speed_reslove.vy
-	                     -(mode->speed_reslove.wz+0*mode->wz_back)*sin(3.1415/4);
-	
-	mode->chassis[FL].vx=mode->speed_reslove.vx
-	                     +mode->speed_reslove.wz*sin(3.1415/4);
-	mode->chassis[FL].vy=mode->speed_reslove.vy
-	                     +mode->speed_reslove.wz*sin(3.1415/4);	
-                       
-                       
-//  get_speed_vx = mode->chassis[FR].vx;
-//  
-//  get_speed_vy = mode->chassis[FR].vy;
-                       
-	mode->speed_set[FR]=sqrt(pow(mode->chassis[FR].vx,2)+
-	pow(mode->chassis[FR].vy,2));
-	
-	mode->speed_set[BR]=sqrt(pow(mode->chassis[BR].vx,2)+
-	pow(mode->chassis[BR].vy,2));
-	
-	mode->speed_set[BL]=sqrt(pow(mode->chassis[BL].vx,2)+
-	pow(mode->chassis[BL].vy,2));
-	
-	mode->speed_set[FL]=sqrt(pow(mode->chassis[FL].vx,2)+
-	pow(mode->chassis[FL].vy,2));
-	
-  
-  
-  /*在轮子跟随云台模式解算时在上面赋了速度才能计算出跟随角度，这里将速度还原*/
-  if(mode->chassis_mode!=no_move&& mode->speed_in.vx==0&&mode->speed_in.vy==0&&mode->speed_in.wz==0)
-  {
-   for(int i=0;i<4;i++)
-   {
-     mode->speed_set[i]=0;
-   }
-  }
+    /* FR: 右前 (+a,+b) */
+    mode->chassis[FR].vx = mode->speed_reslove.vx - wz;
+    mode->chassis[FR].vy = mode->speed_reslove.vy + wz;
+
+    /* BR: 右后 (+a,-b) */
+    mode->chassis[BR].vx = mode->speed_reslove.vx - wz;
+    mode->chassis[BR].vy = mode->speed_reslove.vy - wz;
+
+    /* BL: 左后 (-a,-b) */
+    mode->chassis[BL].vx = mode->speed_reslove.vx + wz;
+    mode->chassis[BL].vy = mode->speed_reslove.vy - wz;
+
+    /* FL: 左前 (-a,+b) */
+    mode->chassis[FL].vx = mode->speed_reslove.vx + wz;
+    mode->chassis[FL].vy = mode->speed_reslove.vy + wz;
+
+    /* 合成轮速 = sqrt(vx? + vy?) */
+    for (int i = 0; i < 4; i++) {
+        mode->speed_set[i] = sqrtf(mode->chassis[i].vx * mode->chassis[i].vx
+                                 + mode->chassis[i].vy * mode->chassis[i].vy);
+    }
+
+    /* 速度全零时清零轮速 */
+    if (mode->chassis_mode != no_move
+        && fabsf(mode->speed_in.vx) < 1e-6f
+        && fabsf(mode->speed_in.vy) < 1e-6f
+        && fabsf(mode->speed_in.wz) < 1e-6f) {
+        for (int i = 0; i < 4; i++) mode->speed_set[i] = 0.0f;
+    }
 }
 
+/* ======================== 舵角解算 ======================== */
 
 /**
-* @note用速度解算出舵机角度并转换成编码器值,并加上转劣弧算法，将速度也随着算法赋正负
-*/
-int gggg;
-int tttt;
-float steer_fr_ecd;
+ * @brief  舵角解算 + 劣弧优化 + 方向修正
+ *
+ * 流程:
+ *   1. atan2(vy, vx) → 舵角 (rad)
+ *   2. rad → 编码器值 (0~8191)
+ *   3. 劣弧优化: 选择最短旋转路径, >90°则反向180°+轮速反转
+ *   4. no_move 模式下锁定舵角
+ *   5. move_flag=0 时保持上次舵角
+ */
 void steer_angle_get(chassis_t *mode)
 {
-	
-	    if(atan2(mode->chassis[FR].vy,mode->chassis[FR].vx)<0)
-			{
-				mode->steer_angle[FR]=atan2(mode->chassis[FR].vy,mode->chassis[FR].vx)+2*PI;
-			}
-			else {mode->steer_angle[FR]=atan2(mode->chassis[FR].vy,mode->chassis[FR].vx);}
-			
-			if(atan2(mode->chassis[BR].vy,mode->chassis[BR].vx)<0)
-			{
-				mode->steer_angle[BR]=atan2(mode->chassis[BR].vy,mode->chassis[BR].vx)+2*PI;
-			}
-			else {mode->steer_angle[BR]=atan2(mode->chassis[BR].vy,mode->chassis[BR].vx);}
-			
-			if(atan2(mode->chassis[BL].vy,mode->chassis[BL].vx)<0)
-			{
-				mode->steer_angle[BL]=atan2(mode->chassis[BL].vy,mode->chassis[BL].vx)+2*PI;
-			}
-			else {mode->steer_angle[BL]=atan2(mode->chassis[BL].vy,mode->chassis[BL].vx);}
-			
-			if(atan2(mode->chassis[FL].vy,mode->chassis[FL].vx)<0)
-			{
-				mode->steer_angle[FL]=atan2(mode->chassis[FL].vy,mode->chassis[FL].vx)+2*PI;
-			}
-			else {mode->steer_angle[FL]=atan2(mode->chassis[FL].vy,mode->chassis[FL].vx);}
-	
-	
-    mode->steer_resolve_ecd[FR]=mode->steer_angle[FR]/(2*PI)*8192+steer_init_angle_FR;
-		mode->steer_resolve_ecd[BR]=mode->steer_angle[BR]/(2*PI)*8192+steer_init_angle_BR;
-		mode->steer_resolve_ecd[BL]=mode->steer_angle[BL]/(2*PI)*8192+steer_init_angle_BL;
-		mode->steer_resolve_ecd[FL]=mode->steer_angle[FL]/(2*PI)*8192+steer_init_angle_FL;
+    /* ---- 第一步: 四轮舵角计算 ---- */
+    for (int i = 0; i < 4; i++) {
+        float angle = atan2f(mode->chassis[i].vy, mode->chassis[i].vx);
+        if (angle < 0.0f) angle += 2.0f * PI;
+        mode->steer_angle[i] = angle;
+    }
 
-    for(int i=0;i<4;i++)
-		{
-				if(mode->steer_resolve_ecd[i]>8192)
-						mode->steer_resolve_ecd[i]-=8192;
-					else if(mode->steer_resolve_ecd[i]<-8192)
-						mode->steer_resolve_ecd[i]+=8192;
-					
-					if((mode->steer_resolve_ecd[i]-steer_motor[i].motor_measure.ecd)>4096)
-					{
-						mode->steer_resolve_ecd[i]-=8192;
-					}
-					else if(mode->steer_resolve_ecd[i]-steer_motor[i].motor_measure.ecd<-4096)
-					{
-						mode->steer_resolve_ecd[i]+=8192;
-					}
-					
-		
-   
-			if(mode->steer_resolve_ecd[i]-steer_motor[i].motor_measure.ecd>2048)
-					{
-					  mode->speed_direct[i]=-1;
-						mode->steer_ecd[i]=mode->steer_resolve_ecd[i]-4096;
-					}
-					else if(mode->steer_resolve_ecd[i]-steer_motor[i].motor_measure.ecd<-2048)
-					{mode->speed_direct[i]=-1;
+    /* ---- 第二步: 角度 → 编码器值 ---- */
+    static const float steer_init[4] = {
+        steer_init_angle_FR, steer_init_angle_BR,
+        steer_init_angle_BL, steer_init_angle_FL
+    };
+    for (int i = 0; i < 4; i++) {
+        mode->steer_resolve_ecd[i] = mode->steer_angle[i]
+            / (2.0f * PI) * 8192.0f + steer_init[i];
+    }
 
-						mode->steer_ecd[i]=mode->steer_resolve_ecd[i]+4096;
-					}
-					else 
-          {
-            mode->speed_direct[i]=1;
-            mode->steer_ecd[i]=mode->steer_resolve_ecd[i];
-          }	
-			}
-		
-		
-		
+    /* ---- 第三步: 劣弧优化 + 方向修正 ---- */
+    float ecd_now[4];
+    for (int i = 0; i < 4; i++) {
+        ecd_now[i] = (float)steer_motor[i].motor_measure.ecd;
+    }
+    ResolveSteerShortArc(mode->steer_resolve_ecd, ecd_now,
+                         mode->speed_direct);
 
-      if(mode->chassis_mode==no_move)
-   {
-     mode->last_ecd[FR]=steer_motor[FR].motor_measure.ecd;
-		 mode->last_ecd[BR]=steer_motor[BR].motor_measure.ecd;
-		 mode->last_ecd[BL]=steer_motor[BL].motor_measure.ecd;
-		 mode->last_ecd[FL]=steer_motor[FL].motor_measure.ecd;
-   }
+    /* 将结果写入 steer_ecd */
+    for (int i = 0; i < 4; i++) {
+        mode->steer_ecd[i] = mode->steer_resolve_ecd[i];
+    }
 
-
-   /*除陀螺时对舵向转向进行衰减，防止瞬时功率变化过大对超电进行冲击*/
-    if(chassis.speed_in.wz!=0)
-    {
-      for(int i=0;i<4;i++)
-      {
-      
-//        if(mode->last_ecd[i]>500&&mode->last_ecd[i]<7500&&mode->steer_ecd[i]>500&&mode->steer_ecd[i]<7500)
-//        {
-//          mode->steer_ecd[i]=LowPass_SetSteer(mode->last_ecd[i],mode->steer_ecd[i]);
-//        }
-//        else {
-          mode->steer_ecd[i]=mode->steer_ecd[i];
-//        }
-//        
-      }
-     }
-     else 
-     {
-     
-         for(int i=0;i<4;i++)
-        {
-          mode->steer_ecd[i]=mode->steer_ecd[i];
+    /* ---- 第四步: no_move 模式下记录当前编码器用于锁定 ---- */
+    if (mode->chassis_mode == no_move) {
+        for (int i = 0; i < 4; i++) {
+            mode->last_ecd[i] = (float)steer_motor[i].motor_measure.ecd;
         }
-     }
-     
-     
-   
-  
-   if(mode->move_flag==0)
-   {
-     for(int i=0;i<4;i++)
-     {
-      mode->steer_final_ecd[i]=mode->last_ecd[i];
-     }
-   }else if(mode->move_flag==1)
-   {
-     for(int i=0;i<4;i++)
-     {
-      mode->steer_final_ecd[i]=mode->steer_ecd[i];
-     }
-   }
-	
-	  mode->last_ecd[FR]=mode->steer_final_ecd[FR];
-		mode->last_ecd[BR]=mode->steer_final_ecd[BR];
-		mode->last_ecd[BL]=mode->steer_final_ecd[BL];
-		mode->last_ecd[FL]=mode->steer_final_ecd[FL];
-    
-    
+    }
+
+    /* ---- 第五步: 最终舵角选择 ---- */
+    if (mode->move_flag == 0) {
+        /* 停止时锁定舵角 */
+        for (int i = 0; i < 4; i++) {
+            mode->steer_final_ecd[i] = mode->last_ecd[i];
+        }
+    } else {
+        for (int i = 0; i < 4; i++) {
+            mode->steer_final_ecd[i] = mode->steer_ecd[i];
+        }
+    }
+
+    /* 更新 last_ecd */
+    for (int i = 0; i < 4; i++) {
+        mode->last_ecd[i] = mode->steer_final_ecd[i];
+    }
 }
 
+/* ======================== 速度合成修正 ======================== */
+
+/**
+ * @brief  速度合成 + 方向修正 + cos?衰减
+ *
+ * 当不在陀螺状态时, 检测舵角误差并用 cos? 衰减轮速,
+ * 防止舵向未到位时轮子猛转。
+ */
 void chassis_speed_set(chassis_t *mode)
 {
-
-  mode->speed_set[FR]=sqrt(pow(mode->chassis[FR].vx,2)+
-	pow(mode->chassis[FR].vy,2));
-	
-	mode->speed_set[BR]=sqrt(pow(mode->chassis[BR].vx,2)+
-	pow(mode->chassis[BR].vy,2));
-	
-	mode->speed_set[BL]=sqrt(pow(mode->chassis[BL].vx,2)+
-	pow(mode->chassis[BL].vy,2));
-	
-	mode->speed_set[FL]=sqrt(pow(mode->chassis[FL].vx,2)+
-	pow(mode->chassis[FL].vy,2));
-  
-	/*在轮子跟随云台模式解算时在上面赋了速度才能计算出跟随角度，这里将速度还原*/
-  if((mode->chassis_mode!=no_move&& mode->speed_in.vx==0&&mode->speed_in.vy==0&&mode->speed_in.wz==0)||mode->chassis_mode==no_move)
-  {
-   for(int i=0;i<4;i++)
-   {
-     mode->speed_set[i]=0;
-   }
-  }
-  
-  
-  
-  float k=0;
-  
-  
-  for(int i=0;i<4;i++)
-  {
-    mode->speed_set[i]*=mode->speed_direct[i];
-    
-  }
-  
-  
-  
-  /*除陀螺时检测舵向是否转到目标位置，用cos函数进行衰减*/
-  if(mode->speed_in.wz==0)
-  {
-      for(int i=0;i<4;i++)
-    {
-      mode->steer_diff_angle=fabs(mode->steer_ecd[i]-steer_motor[i].motor_measure.ecd)*2*3.14/8192;
-      k=arm_cos_f32(mode->steer_diff_angle);
-      mode->speed_set[i]*=k*k*k;
+    /* 合成四轮线速度 */
+    for (int i = 0; i < 4; i++) {
+        mode->speed_set[i] = sqrtf(mode->chassis[i].vx * mode->chassis[i].vx
+                                 + mode->chassis[i].vy * mode->chassis[i].vy);
     }
-  }
-  
-//  for(int i=0;i<4;i++)
-//  {
-//     mode->speed_set[i]=LowPass_SetChassis(mode->last_speed_set[i],mode->speed_set[i]);
-//     mode->last_speed_set[i]=mode->speed_set[i];
-//  }
+
+    /* 零速清零 */
+    if (mode->chassis_mode == no_move
+        || (fabsf(mode->speed_in.vx) < 1e-6f
+         && fabsf(mode->speed_in.vy) < 1e-6f
+         && fabsf(mode->speed_in.wz) < 1e-6f)) {
+        for (int i = 0; i < 4; i++) mode->speed_set[i] = 0.0f;
+    }
+
+    /* 方向修正 */
+    for (int i = 0; i < 4; i++) {
+        mode->speed_set[i] *= (float)mode->speed_direct[i];
+    }
+
+    /* cos? 衰减 (非陀螺时) */
+    if (fabsf(mode->speed_in.wz) < 1e-6f) {
+        for (int i = 0; i < 4; i++) {
+            float angle_err = fabsf(mode->steer_ecd[i]
+                - (float)steer_motor[i].motor_measure.ecd)
+                * 2.0f * PI / 8192.0f;
+            float k = arm_cos_f32(angle_err);
+            mode->speed_set[i] *= k * k * k;
+        }
+    }
 }
 
+/* ======================== PID 计算输出 ======================== */
 
-
-
-
-
-
-uint8_t cap_state = 0;
-float input_power = 0;		 // input power from battery (referee system)
-float chassis_max_power_t;
-//uint8_t cap_state = 0;
-//float input_power = 0;		 // input power from battery (referee system)
 /**
- * @description: 有超电的底盘功率限制
- * @brief:对于底盘的电机功率使用进行控制，以更好的控制车体功率
- * @return none
-Pm=CTIcmdω+k1ω2+k2Icmd2
+ * @brief  级联 PID: 舵角位置环 → 舵速环 → 轮速环
  */
- float get_power;
- float remain_power;
-void chassis_power_limit_set(void)
-{
-	uint16_t max_power_limit = 40;//最大功率初始化
-	fp32 chassis_max_power = 0;
-  fp32 chassis_steer_powe=0;//舵轮的功率
-  fp32 chassis_remain_power=0;//扣去舵轮的功率,剩余的轮向功率
-	
-  float initial_steer_power[4];
-	float initial_give_power[4]; // initial power from PID calculation
-  float initial_total_steer_power = 0;
-	float initial_total_power = 0;
-	fp32 scaled_give_power[4];
-  int steer_power;
-	fp32 chassis_power = 0.0f; 
-	fp32 chassis_power_buffer = 0.0f;
-
-//	fp32 toque_coefficient = 1.99688994e-6f; // (20/16384)*(0.3)*(187/3591)/9.55
-//	fp32 a = 1.23e-07;						 // k1
-//	fp32 k2 = 1.453e-07;					 // k2
-//	fp32 constant = 4.081f;
-	
-
-chassis_power=100.0f;
-chassis_power_buffer=USART_Rx_data.chassis_buff;//缓冲功率
-
-
-   max_power_limit = USART_Rx_data.chassis_Power_limit;         //哨兵为100,其他车体根据裁判系统功率填入数据
-  
-	
-	input_power = max_power_limit- pid_calc(&chassis_buffer ,chassis_power_buffer ,30); ;//计算出的此时可用的功率
-
-	//
-	
-  
-//  SuperCAP.C_Vol=0;//超电的电压，没有超电就填0，有超电注掉这一行
-  
-  
-  //根据自己代码什么时候用超电什么时候cap_state为1,
-  
-	if(SuperCAP.C_Vol >= 11.5f)
-	{
-    if(USART_Rx_data.chassis_Power_limit<40)
-    {
-     chassis_max_power = input_power + 20;
-    }
-    
-    else chassis_max_power = input_power + 60;
-
-			
-
-	}
-	else
-	{
-		chassis_max_power = input_power;
-	}
-  
-  
-  chassis_max_power_t=chassis_max_power;
-  for(int i = 0;i < 4;i++)
-  {
-    initial_steer_power[i]= motor_6020_kp*steer_motor[i].motor_measure.speed_rpm*steer_motor[i].motor_tar.set_current
-                            +motor_6020_kw*steer_motor[i].motor_measure.speed_rpm*steer_motor[i].motor_measure.speed_rpm
-                            +motor_6020_ki*steer_motor[i].motor_tar.set_current*steer_motor[i].motor_tar.set_current+motor_6020_constant;
-                            
-     if(initial_steer_power<0)
-     {
-       continue;
-     }
-     
-     initial_total_steer_power+=initial_steer_power[i];
-  }
-  
-  if(chassis.speed_in.wz!=0)
-  {
-    steer_power=chassis_max_power*0.8;
-  }
-  else steer_power=chassis_max_power*0.8 ;
-  get_power=initial_total_steer_power;
-  if (initial_total_steer_power > steer_power) // 判断是否超过最大舵向功率
-		{
-    
-    
-			fp32 power_scale = steer_power / initial_total_steer_power;
-      initial_total_steer_power=steer_power;
-			for (uint8_t i = 0; i < 4; i++)
-			{
-				scaled_give_power[i] = initial_steer_power[i] * power_scale; // get scaled power
-				if (scaled_give_power[i] < 0)
-				{
-					continue;
-				}	
-
-				fp32 b = motor_6020_kp * steer_motor[i].motor_measure.speed_rpm;
-				fp32 c = motor_6020_kw * steer_motor[i].motor_measure.speed_rpm * steer_motor[i].motor_measure.speed_rpm - scaled_give_power[i] + motor_6020_constant;
-
-				if (steer_motor[i].motor_tar.set_current > 0) // Selection of the calculation formula according to the direction of the original moment
-				{
-					fp32 temp = (-b + sqrt(b * b - 4 * motor_6020_ki * c)) / (2 * motor_6020_ki);
-					if (temp > 16000)
-					{
-						steer_motor[i].motor_tar.set_current = 16000;//max_current_out 16384
-					}
-					else
-						steer_motor[i].motor_tar.set_current = temp;
-				}
-				else
-				{
-					fp32 temp = (-b - sqrt(b * b - 4 * motor_6020_ki * c)) / (2 * motor_6020_ki);
-					if (temp < -16000)
-					{
-						steer_motor[i].motor_tar.set_current = -16000;
-					}
-					else
-						steer_motor[i].motor_tar.set_current = temp;
-				}
-			}
-		}
-  
-  
-  
-  //因为6020预测准确率没有3508好，加上只用第一个电机的数据拟合其他的参数，肯定会不准，在这里预留5w来做抵消误差
-  chassis_remain_power=chassis_max_power-initial_total_steer_power-3;
-  remain_power=chassis_remain_power;
-  if(chassis_remain_power<0)
-  {
-    chassis_remain_power=0;
-  }
-  
-	for(int i = 0;i < 4;i++)
-	{
-  
-		initial_give_power[i] = chassis_motor[i].motor_tar.set_current* motor_3508_kp * chassis_motor[i].motor_measure.speed_rpm +
-										motor_3508_kw * chassis_motor[i].motor_measure.speed_rpm * chassis_motor[i].motor_measure.speed_rpm +
-										motor_3508_ki * chassis_motor[i].motor_tar.set_current * chassis_motor[i].motor_tar.set_current + motor_3508_constant;
-		
-	  if (initial_give_power < 0) // negative power not included (transitory)
-		{  
-		  continue;
-		} 
-		initial_total_power += initial_give_power[i];
-	}
-	
-		if (initial_total_power > chassis_remain_power) // 判断是否超过最大轮向功率
-		{
-			fp32 power_scale = chassis_remain_power / initial_total_power;
-			for (uint8_t i = 0; i < 4; i++)
-			{
-				scaled_give_power[i] = initial_give_power[i] * power_scale; // get scaled power
-				if (scaled_give_power[i] < 0)
-				{
-					continue;
-				}	
-
-				fp32 b = motor_3508_kp * chassis_motor[i].motor_measure.speed_rpm;
-				fp32 c = motor_3508_kw * chassis_motor[i].motor_measure.speed_rpm * chassis_motor[i].motor_measure.speed_rpm - scaled_give_power[i] + motor_3508_constant;
-
-				if (chassis_motor[i].motor_tar.set_current > 0) // Selection of the calculation formula according to the direction of the original moment
-				{
-					fp32 temp = (-b + sqrt(b * b - 4 * motor_3508_ki * c)) / (2 * motor_3508_ki);
-					if (temp > 16000)
-					{
-						chassis_motor[i].motor_tar.set_current = 16000;//max_current_out 16384
-					}
-					else
-						chassis_motor[i].motor_tar.set_current = temp;
-				}
-				else
-				{
-					fp32 temp = (-b - sqrt(b * b - 4 * motor_3508_ki * c)) / (2 * motor_3508_ki);
-					if (temp < -16000)
-					{
-						chassis_motor[i].motor_tar.set_current = -16000;
-					}
-					else
-						chassis_motor[i].motor_tar.set_current = temp;
-				}
-			}
-		}
-}
-
-
-float real_chassis=0.0f;
-
-void chassis_power_get()
-{
-  float initial_total_steer_power = 0;
-	float initial_total_power = 0;
-  float initial_steer_power[4];
-	float initial_give_power[4]; // initial power from PID calculation
-  
-  
-  for(int i = 0;i < 4;i++)
-  {
-    initial_steer_power[i]= motor_6020_kp*steer_motor[i].motor_measure.speed_rpm*steer_motor[i].motor_tar.set_current
-                            +motor_6020_kw*steer_motor[i].motor_measure.speed_rpm*steer_motor[i].motor_measure.speed_rpm
-                            +motor_6020_ki*steer_motor[i].motor_tar.set_current*steer_motor[i].motor_tar.set_current+motor_6020_constant;
-                            
-     if(initial_steer_power<0)
-     {
-       continue;
-     }
-     
-     initial_total_steer_power+=initial_steer_power[i];
-  }
-  
-  for(int i = 0;i < 4;i++)
-	{
-  
-		initial_give_power[i] = chassis_motor[i].motor_tar.set_current* motor_3508_kp * chassis_motor[i].motor_measure.speed_rpm +
-										motor_3508_kw * chassis_motor[i].motor_measure.speed_rpm * chassis_motor[i].motor_measure.speed_rpm +
-										motor_3508_ki * chassis_motor[i].motor_tar.set_current * chassis_motor[i].motor_tar.set_current + motor_3508_constant;
-		
-	  if (initial_give_power < 0) // negative power not included (transitory)
-		{  
-		  continue;
-		} 
-		initial_total_power += initial_give_power[i];
-	}
-  
-  
-  real_chassis=initial_total_steer_power+initial_total_power;
-  
-  if(real_chassis<0)
-  {
-   real_chassis=0;
-  }
-}
-
-
-
-
-
-/**
-  * @brief  车子速度设定的低通滤波
-  * @param  
-  * @retval 滤波后最新值
-  */
-float LowPass_SetChassis(float old,float In)
-{
-    return (1-K_Low_setchassis)*(old)+K_Low_setchassis*In;   
-}
-
-/**
-  * @brief  车子舵轮设定的低通滤波
-  * @param  
-  * @retval 滤波后最新值
-  */
-float LowPass_SetSteer(float old,float In)
-{
-    return (1-K_Low_setSteer)*(old)+K_Low_setSteer*In;   
-}
-
 void chassis_clac(chassis_t *mode)
 {
- int n=3;
-	for(int i=0;i<4;i++)
-	{
-		mode->steer_speed_set[i]=pid_calc(&pid_steer_ecd[i],steer_motor[i].motor_measure.ecd,mode->steer_final_ecd[i]);
-		steer_motor[i].motor_tar.set_current= pid_calc(&pid_steer_speed[i],steer_motor[i].motor_measure.speed_rpm,mode->steer_speed_set[i]);
-		chassis_motor[i].motor_tar.set_current=pid_calc(&pid_chassis_speed[i],chassis_motor[i].motor_measure.speed_rpm,mode->speed_set[i]);
-	}
+    for (int i = 0; i < 4; i++) {
+        /* 舵角位置环 */
+        mode->steer_speed_set[i] = pid_calc(&pid_steer_ecd[i],
+            steer_motor[i].motor_measure.ecd, mode->steer_final_ecd[i]);
+
+        /* 舵速环 */
+        steer_motor[i].motor_tar.set_current = pid_calc(&pid_steer_speed[i],
+            steer_motor[i].motor_measure.speed_rpm, mode->steer_speed_set[i]);
+
+        /* 轮速环 */
+        chassis_motor[i].motor_tar.set_current = pid_calc(&pid_chassis_speed[i],
+            chassis_motor[i].motor_measure.speed_rpm, mode->speed_set[i]);
+    }
 }
 
+/* ======================== 功率限制 ======================== */
 
-
-
-
-
-
-
-int real_move_state=0;
-
-/*检测整个底盘速度，若有速度反馈则代表底盘正在移动,  */
-int chassis_real_move_get()
+/**
+ * @brief  底盘功率限制 (超电自适应)
+ *
+ * 功率分配策略:
+ *   1. 裁判系统限制基础功率 + 超电额外功率
+ *   2. 舵机优先分配 (上限 = 总功率 × 80%)
+ *   3. 剩余功率分配给底盘电机
+ *   4. 超限时通过功率模型反解电流进行等比例缩放
+ */
+void chassis_power_limit_set(void)
 {
+    uint16_t max_power_limit = 100;  /* 哨兵裁判系统功率上限 */
+    float chassis_max_power;
+    float chassis_remain_power;
+    float chassis_power_buffer;
+    float steer_power_budget;
 
+    /* ---- 1. 读取缓冲能量, 计算可用功率 ---- */
+    chassis_power_buffer = USART_Rx_data.chassis_buff;
+    input_power = (float)max_power_limit
+        - pid_calc(&chassis_buffer, chassis_power_buffer, 30.0f);
 
-  
-  uint16_t real_speed=abs(chassis_motor[0].motor_measure.speed_rpm)+abs(chassis_motor[1].motor_measure.speed_rpm)+
-           abs(chassis_motor[2].motor_measure.speed_rpm)+abs(chassis_motor[3].motor_measure.speed_rpm);
-           
-  real_speed/=4;
-           
-           if(real_speed<150)
-           {
-             real_move_state=move_off;
-           }
-           else real_move_state=move_on;
+    /* ---- 2. 超电检测 ---- */
+    if (SuperCAP.C_Vol >= 13.5f) {
+        chassis_max_power = (USART_Rx_data.chassis_Power_limit < 40)
+            ? input_power + 20.0f
+            : input_power + 60.0f;
+    } else {
+        chassis_max_power = input_power;
+    }
 
-   return real_move_state;
+    /* ---- 3. 舵机功率限制 (上限80%) ---- */
+    steer_power_budget = chassis_max_power * 0.8f;
+    ApplyPowerLimit(motor_6020_kp, motor_6020_kw, motor_6020_ki,
+                    motor_6020_constant, steer_motor, steer_power_budget, 4);
+
+    /* 重新计算舵机实际功率 */
+    float actual_steer_power = 0.0f;
+    for (int i = 0; i < 4; i++) {
+        float p = CalcMotorPower(motor_6020_kp, motor_6020_kw,
+                                 motor_6020_ki, motor_6020_constant,
+                                 steer_motor[i].motor_measure.speed_rpm,
+                                 steer_motor[i].motor_tar.set_current);
+        if (p > 0.0f) actual_steer_power += p;
+    }
+    get_power = actual_steer_power;
+
+    /* ---- 4. 底盘轮向功率限制 ---- */
+    chassis_remain_power = chassis_max_power - actual_steer_power - 3.0f;
+    remain_power = chassis_remain_power;
+    if (chassis_remain_power < 0.0f) chassis_remain_power = 0.0f;
+
+    ApplyPowerLimit(motor_3508_kp, motor_3508_kw, motor_3508_ki,
+                    motor_3508_constant, chassis_motor, chassis_remain_power, 4);
 }
 
+/* ======================== 功率检测 (调试用) ======================== */
 
+void chassis_power_get(void)
+{
+    float total_steer = 0.0f, total_chassis = 0.0f;
 
+    for (int i = 0; i < 4; i++) {
+        float sp = CalcMotorPower(motor_6020_kp, motor_6020_kw,
+                                  motor_6020_ki, motor_6020_constant,
+                                  steer_motor[i].motor_measure.speed_rpm,
+                                  steer_motor[i].motor_tar.set_current);
+        if (sp > 0.0f) total_steer += sp;
 
+        float cp = CalcMotorPower(motor_3508_kp, motor_3508_kw,
+                                  motor_3508_ki, motor_3508_constant,
+                                  chassis_motor[i].motor_measure.speed_rpm,
+                                  chassis_motor[i].motor_tar.set_current);
+        if (cp > 0.0f) total_chassis += cp;
+    }
 
-/*若模式切换后底盘未赋速度则当运动完全停止后再转舵，特别是底盘陀螺转向舵向跟随时底盘的转动的惯性全作用在轮子上，这也稍微避免了翘头的问题*/
-int yyyy;
-int last_state=no_move;
-//void move_state_change(chassis_t *mode)
-//{
+    real_chassis = total_steer + total_chassis;
+    if (real_chassis < 0.0f) real_chassis = 0.0f;
+}
 
+/* ======================== 低通滤波 ======================== */
 
-//   if(mode->chassis_mode!=last_state&&mode->move_flag==1)
-//   {
-//   
-//   yyyy++;
-//     mode->move_flag=0;
-//   }
-//   if((chassis_real_move_get()==move_off||fabs(mode->speed_in.vx)>0||fabs(mode->speed_in.vy)>0)&&mode->move_flag==0)
-//   {
-//     mode->move_flag=1;
-//   }
-//   last_state=mode->chassis_mode;
-//}
+float LowPass_SetChassis(float old, float In)
+{
+    return (1.0f - K_Low_setchassis) * old + K_Low_setchassis * In;
+}
+
+float LowPass_SetSteer(float old, float In)
+{
+    return (1.0f - K_Low_setSteer) * old + K_Low_setSteer * In;
+}
+
+/* ======================== 移动检测 ======================== */
+
+/**
+ * @brief  检测底盘是否正在真实移动 (四轮平均转速 > 150rpm)
+ */
+int chassis_real_move_get(void)
+{
+    uint16_t avg_speed = 0;
+    for (int i = 0; i < 4; i++) {
+        int16_t rpm = chassis_motor[i].motor_measure.speed_rpm;
+        avg_speed += (uint16_t)(rpm < 0 ? -rpm : rpm);
+    }
+    avg_speed /= 4;
+
+    real_move_state = (avg_speed < 150) ? move_off : move_on;
+    return real_move_state;
+}
+
+/* ======================== 模式切换过渡 ======================== */
 
 void move_state_change(chassis_t *mode)
 {
-   if(mode->speed_in.vx==0&&mode->speed_in.vy==0&&fabs(mode->speed_in.wz)<500&&mode->move_flag==1)
-   {
-     mode->move_flag=1;
-   }
-   if((chassis_real_move_get()==move_off||(mode->speed_in.vx!=0||mode->speed_in.vy!=0))&&mode->move_flag==0)
-   {
-     mode->move_flag=1;
-   }
+    (void)mode;
+    /* 预留: 模式切换时的状态过渡 */
+}
+
+/* ======================== 遥控器模式 (保留兼容) ======================== */
+
+void speed_in_reslove(chassis_t *mode)
+{
+#ifndef communicate
+    /* 遥控器输入处理 */
+    mode->speed_in.vx = (abs(rc_ctrl.rc.ch3) < 200) ? 0.0f
+                        : rc_ctrl.rc.ch3 * 3.5f;
+    mode->speed_in.vy = (abs(rc_ctrl.rc.ch2) < 200) ? 0.0f
+                        : -rc_ctrl.rc.ch2 * 3.5f;
+    mode->speed_in.wz = (rc_ctrl.rc.s_l == RC_SW_UP) ? 3500.0f : 0.0f;
+    mode->if_chassis_open = (rc_ctrl.rc.s_l != RC_SW_DOWN) ? 1 : 0;
+#else
+    /* 串口通信模式: 速度已在别处赋值 */
+    (void)mode;
+#endif
 }

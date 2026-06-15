@@ -1,3 +1,10 @@
+/**
+ ******************************************************************************
+ * @file    bsp_transmit.c
+ * @brief   串口收发模块：解析上位机下发的控制指令，打包底盘状态回传
+ ******************************************************************************
+ */
+
 #include "bsp_transmit.h"
 #include "cmsis_os.h"
 #include "system.h"
@@ -9,90 +16,101 @@
 #include "referee.h"
 #include "string.h"
 #include "Odometer.h"
-//#include "shoot.h"
-uint8_t USART_Rx_data_handle[DATA_COUNT_RX];
 
-
-USART_Rx_data_t  USART_Rx_data;
-
-uint8_t transmit_seq;
-int hhhhhh;
-void RX_USART_data_Handle(uint8_t *buff,USART_Rx_data_t *data)
-{
-u8_to_float vx,vy,ecd;
-u8_to_u16 buff_energy;
-
-u8_to_int16 up_yaw,chassis_Power_limit;
-
-  if(buff == NULL)
-  {
-  
-   return;
-  }
-  if(buff[0]==USART_RX_HAED&&buff[DATA_COUNT-1]==USART_RX_END)
-  {
-   data->if_chassis_open=buff[1];
-   data->chassis_mode=buff[2];
-   for(int i=0;i<4;i++)
-   { 
-   
-     vx.d[i]=buff[i+3];
-     vy.d[i]=buff[i+7];
-     ecd.d[i]=buff[i+11];
-   }
-   for(int i=0;i<2;i++)
-   {
-//     up_yaw.d[i]=buff[i+17];
-     chassis_Power_limit.d[i]=buff[i+19];
-     buff_energy.d[i]=buff[i+21];
-   }
-   
-   
-   data->if_arrived=buff[15];
-   
-   data->Vz_state=buff[16];
-
-   data->position_x=buff[17];
-   data->position_y=buff[18];
-   transmit_seq++;
-
-   data->trans_seq=buff[23];
-   data->chassis_vx=-vx.data*4;
-   data->chassis_vy=-vy.data*4;
-   data->big_yaw_ecd=ecd.data;
-   data->up_yaw=(float)up_yaw.data/100;
-   data->chassis_Power_limit=chassis_Power_limit.data;
-   data->chassis_buff=buff_energy.data;
-   data->current_x= (float)data->position_x/10;
-   data->current_y= (float)data->position_y/10;   
-   data->yaw_diff=up_yaw.data-0;
-   
-   data->ecd_diff=data->yaw_diff*2*3.14/360;
-   
-   location.relative_init_angle=data->big_yaw_ecd-data->ecd_diff;
-   
-  }
-}
-
-HAL_StatusTypeDef ioioj;
-uint8_t Tx_Buff[DATA_Tx_count];
+/* ---- 全局变量 ---- */
+uint8_t  USART_Rx_data_handle[DATA_COUNT_RX];
+USART_Rx_data_t USART_Rx_data;
 USART_Tx_data_t USART_Tx_data;
-int jjjj;
-void USART_TX_send(uint8_t *buff,USART_Tx_data_t *data)
+uint8_t  Tx_Buff[DATA_Tx_count];
+uint8_t  transmit_seq;
+
+/* ======================== 串口接收解析 ======================== */
+
+/**
+ * @brief  解析上位机下发的控制帧
+ * @param  buff  接收缓冲区
+ * @param  data  解析结果输出结构体
+ * @note   帧格式: [HEAD(0xA5)] [cmd...] [END(0xAA)]
+ */
+void RX_USART_data_Handle(uint8_t *buff, USART_Rx_data_t *data)
 {
-data->odom_Sx=location.Sx;
-data->odom_Sy=location.Sy;
-  data->odom_Vx++;
-  
-  Tx_Buff[0]=USART_TX_HAED;
-  memcpy(Tx_Buff+1,&data->odom_Sx,4);
-  memcpy(Tx_Buff+5,&data->odom_Sy,4);
-  memcpy(Tx_Buff+9,&data->odom_Vx,4);
-  memcpy(Tx_Buff+13,&data->odom_Vy,4);
-  Tx_Buff[DATA_Tx_count-1]=USART_RX_END;
-  jjjj++;
- ioioj= HAL_UART_Transmit_DMA(&huart1,Tx_Buff,DATA_Tx_count);
+    u8_to_float vx, vy, ecd;
+    u8_to_u16   buff_energy;
+    u8_to_int16 up_yaw, chassis_Power_limit;
+
+    if (buff == NULL) {
+        return;
+    }
+
+    if (buff[0] != USART_RX_HAED || buff[DATA_COUNT - 1] != USART_RX_END) {
+        return;
+    }
+
+    /* 解析帧头字段 */
+    data->if_chassis_open = buff[1];
+    data->chassis_mode    = buff[2];
+
+    /* 解析4字节浮点数: vx, vy, big_yaw_ecd */
+    for (int i = 0; i < 4; i++) {
+        vx.d[i]  = buff[i + 3];
+        vy.d[i]  = buff[i + 7];
+        ecd.d[i] = buff[i + 11];
+    }
+
+    /* 解析2字节整数: 功率限制, 缓冲能量 */
+    for (int i = 0; i < 2; i++) {
+        chassis_Power_limit.d[i] = buff[i + 19];
+        buff_energy.d[i]         = buff[i + 21];
+    }
+
+    data->if_arrived  = buff[15];
+    data->Vz_state    = (Vz_state_t)buff[16];
+    data->position_x  = buff[17];
+    data->position_y  = buff[18];
+    transmit_seq++;
+
+    /* 填充解析结果 */
+    data->trans_seq          = buff[23];
+    data->chassis_vx         = -vx.data * 4.0f;
+    data->chassis_vy         = -vy.data * 4.0f;
+    data->big_yaw_ecd        = ecd.data;
+    data->up_yaw             = (float)up_yaw.data / 100.0f;
+    data->chassis_Power_limit = chassis_Power_limit.data;
+    data->chassis_buff       = buff_energy.data;
+    data->current_x          = (float)data->position_x / 10.0f;
+    data->current_y          = (float)data->position_y / 10.0f;
+    data->yaw_diff           = (float)(up_yaw.data - 0);
+
+    data->ecd_diff           = data->yaw_diff * 2.0f * 3.1415926f / 360.0f;
+
+    chassis.relative_init_angle = data->big_yaw_ecd - data->ecd_diff;
 }
+
+/* ======================== 串口发送打包 ======================== */
+
+/**
+ * @brief  打包底盘里程计数据并通过DMA发送
+ * @param  buff  发送缓冲区
+ * @param  data  待发送数据
+ */
+void USART_TX_send(uint8_t *buff, USART_Tx_data_t *data)
+{
+    (void)buff;  /* 使用内部 Tx_Buff */
+
+    data->odom_Sx = chassis.Sx;
+    data->odom_Sy = chassis.Sy;
+    data->odom_Vx++;
+
+    Tx_Buff[0] = USART_TX_HAED;
+    memcpy(Tx_Buff + 1,  &data->odom_Sx, 4);
+    memcpy(Tx_Buff + 5,  &data->odom_Sy, 4);
+    memcpy(Tx_Buff + 9,  &data->odom_Vx, 4);
+    memcpy(Tx_Buff + 13, &data->odom_Vy, 4);
+    Tx_Buff[DATA_Tx_count - 1] = USART_RX_END;
+
+    HAL_UART_Transmit_DMA(&huart1, Tx_Buff, DATA_Tx_count);
+}
+
 
 
 
