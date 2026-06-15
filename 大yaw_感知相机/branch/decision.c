@@ -1,26 +1,14 @@
-
 /**
-  ************************************* Copyright ****************************** 
-  * FileName   : decision.c   
-  * Version    : v2.1	
-  * Author     : 周灿
-  * Number     : 15271187610 	
-  * Date       : 2025-8-1   
-  * Description:    哨兵电控决策，后续改到上位机上，调试较为困难且复杂，上限太低了
-  * Function List:  
-  	1. ....
-  	   <version>: 		
-  <modify staff>:
-  		  <data>:
-   <description>:  
-  	2. ...
-  ******************************************************************************
- *根据建图的起始点来改代码  下列是所涉及到的协议，但是目前坐标系很不统一，比较麻烦
- 1云台手标点坐标需要修改map_control_fill
- 2云台手小地图哨兵路径提示需要改Path_display
- 3导航点推送至导航端Navigation_Tx_Send(&navigation_tx);
- 4所有涉及到目前哨兵位置的也就是导航发送过来的当前位置都需要看,因为当前导航发过来的坐标是里程计坐标，也就是从程序运行起来相对于你程序起始点的坐标而不是相对于零点的坐标，后续有可能更换，目前不确定
-*******************************************************************/
+ ******************************************************************************
+ * @file    decision.c
+ * @brief   哨兵电控决策 - 6种自主模式状态机 + 云台手标点 + 裁判系统交互
+ * @author  周灿
+ * @date    2025-08-01
+ *
+ * 决策模式: extreme | conservative | patrol | flying | protect | air_control
+ * 采用状态机架构, 每个模式独立维护点位转移逻辑
+ ******************************************************************************
+ */
 
 #include "decision.h"
 #include "bsp_transmit.h"
@@ -34,20 +22,19 @@
 #include "CAN_receive.h"
 #include "navigation.h"
 #include "struct_typedef.h"
-#include "stdbool.h"
 #include "Nautilus_UI.h"
 #include "string.h"
 #include "math.h"
-#include "navigation.h"
-#include "Nautilus_UI.h"
 #include "ins_task.h"
 #include "Sentry_cmd.h"
-/*导航点决策*/
 
-decision_t decision;
+/* ---- 全局状态 ---- */
+decision_t   decision;
 Sentry_cmd_t Sentry_cmd_send;
 
-static int hurt_time = 0;
+static int      hurt_time;
+static uint16_t Last_HP;
+static uint16_t Last_projectile_allowance_17mm;
 
 void Auto_run(void const * argument)
 {
