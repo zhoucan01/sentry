@@ -1,281 +1,233 @@
+/**
+ ******************************************************************************
+ * @file    gimbal_big_yaw.c
+ * @brief   Â§ßYaw‰∫ëÂè∞ÊéßÂà∂ ‚Äî ÈÅ•Êéß/ËßÜËßâ/ÂØºËà™‰∏âÊ®°ÂºèÂàáÊç¢ + Èôê‰ΩçÂ∑°Ëà™
+ * @author  Âë®ÁÅø
+ ******************************************************************************
+ */
+
 #include "gimbal_big_yaw.h"
 #include "system.h"
 #include "cmsis_os.h"
-//#include "vision.h"
 #include "referee.h"
 #include "remote_control.h"
 #include "can_receive.h"
 #include "ins_task.h"
-//#include "vision.h"
 #include "bsp_pid.h"
 #include "navigation.h"
 #include "stdbool.h"
-com_mode_t gim_com;
-com_mode_t last_gim;
-gimbal_t gimbal;
+
+/* ---- PIDÊéßÂà∂Âô® ---- */
 pid_struct_t pid_yaw_angle;
 pid_struct_t pid_yaw_speed;
 pid_struct_t pid_vision_yaw_angle;
 pid_struct_t pid_vision_yaw_speed;
 pid_struct_t pid_navi_yaw_speed;
-void gimbal_pid_init()
+
+/* ---- ÂÖ®Â±ÄÁä∂ÊÄÅ ---- */
+com_mode_t gim_com;
+com_mode_t last_gim;
+gimbal_t gimbal;
+
+static int      big_yaw_lost_count;   /* Â§ßyawÊñ≠ÁîµËÆ°Êï∞ */
+static uint8_t  last_vision_mode;
+static lock_state_t     Last_lock_state;
+static Vision_look_state_t Last_look_state;
+
+/* ---- ÂÜÖÈÉ®ÂáΩÊï∞Â£∞Êòé ---- */
+static void get_big_gimbal_com(void);
+static void gimbal_curise_set(gimbal_t *mode);
+static void gimbal_vision_set(gimbal_t *mode);
+static bool get_gimbal_response_state(gimbal_t *mode);
+
+/* ======================== ÂàùÂßãÂåñ ======================== */
+
+void gimbal_pid_init(void)
 {
-
- 
- pid_init(&pid_yaw_angle,1.0,0,0,0,10);
- pid_init(&pid_yaw_speed,1,0,0,0,10);
- pid_init(&pid_navi_yaw_speed,2.5,0,0,0,5);
- 
-
- pid_init(&pid_vision_yaw_angle,1.0,0,0,0,10);
- pid_init(&pid_vision_yaw_speed,1.0,0,0,0,10);
+    pid_init(&pid_yaw_angle,        1.0f, 0.0f, 0.0f, 0.0f, 10.0f);
+    pid_init(&pid_yaw_speed,        1.0f, 0.0f, 0.0f, 0.0f, 10.0f);
+    pid_init(&pid_navi_yaw_speed,   2.5f, 0.0f, 0.0f, 0.0f,  5.0f);
+    pid_init(&pid_vision_yaw_angle, 1.0f, 0.0f, 0.0f, 0.0f, 10.0f);
+    pid_init(&pid_vision_yaw_speed, 1.0f, 0.0f, 0.0f, 0.0f, 10.0f);
 }
 
-int big_yaw_count;
-void big_yaw_run()
+/* ======================== ‰∏ª‰ªªÂä° ======================== */
+
+void big_yaw_run(void const *argument)
 {
-gimbal.curise_direction=1;
-gimbal_pid_init();
-  for(;;)
-  {
-  get_big_gimbal_com();
-  switch(gim_com)
-  {
-    case com_err:
-    {
-    gimbal.yaw_set=INS.YawTotalAngle;
-    gimbal.yaw_vision_set=INS.YawTotalAngle;
-    gimbal.if_big_yaw_can=0;
-    break;
+    (void)argument;
+    gimbal.curise_direction = 1;
+    gimbal_pid_init();
+
+    for (;;) {
+        get_big_gimbal_com();
+
+        switch (gim_com) {
+        case com_err:
+            gimbal.yaw_set        = INS.YawTotalAngle;
+            gimbal.yaw_vision_set  = INS.YawTotalAngle;
+            gimbal.if_big_yaw_can  = 0;
+            break;
+        case com_nom:
+            gimbal.if_big_yaw_can = 1;
+            gimbal_mode_set(&gimbal);
+            break;
+        }
+        vTaskDelay(1);
     }
-    case com_nom:
-    {
-      gimbal.if_big_yaw_can=1;
-      gimbal_mode_set(&gimbal);
-      break;
-    }
-  }
-    vTaskDelay(1);
-  }
 }
 
+/* ======================== ÈÄö‰ø°Áä∂ÊÄÅÊ£ÄÊµã ======================== */
 
+static void get_big_gimbal_com(void)
+{
+    big_yaw_lost_count++;
 
-int big_yaw_lost_count=0;//º«¬º¥Ûyaw∂œµÁ«Èøˆ,º∆ ˝–°”⁄200 ±»œŒ™“‘∂œµÁ
+    if (sentry_system.chassis_mode == no_move
+        || get_if_communite_broke() == 1
+        || robot_status.power_management_gimbal_output == 0
+        || big_yaw_lost_count > 200) {
+        gim_com = com_err;
+    } else {
+        gim_com = com_nom;
+    }
 
-//≈–∂œ‘∆Ã® «∑Òø™∆Ù
-void get_big_gimbal_com(void)
-{    
-   
-   big_yaw_lost_count++;
-   
-	if(sentry_system.chassis_mode==no_move||get_if_communite_broke()==1||
-	robot_status.power_management_gimbal_output==0||big_yaw_lost_count>200)
-	{
-		gim_com=com_err;
-	}
-	else gim_com=com_nom;
-	
-	if(robot_status.power_management_gimbal_output==0)
-	{
-	yaw_motor.Err=0;
-	}
-	
-	
-	last_gim=gim_com;
+    if (robot_status.power_management_gimbal_output == 0) {
+        yaw_motor.Err = 0;
+    }
+
+    last_gim = gim_com;
 }
 
+/* ======================== Ê®°ÂºèË∞ÉÂ∫¶ ======================== */
 
-
-
-int lokos;
-int kjkhd;
-int jdgsj;
 void gimbal_mode_set(gimbal_t *mode)
 {
- 
-
- 
- get_gimbal_com_count++;
-  switch (sentry_system.big_yaw_mode)
-  {
-    case big_yaw_off: 
-     {
-         lokos++;
-         mode->yaw_set=INS.YawTotalAngle;
-         mode->yaw_vision_set=INS.YawTotalAngle;
-         break;
-     }    
+    switch (sentry_system.big_yaw_mode) {
+    case big_yaw_off:
+        mode->yaw_set       = INS.YawTotalAngle;
+        mode->yaw_vision_set = INS.YawTotalAngle;
+        break;
     case big_yaw_rc:
-    {
-       jdgsj++;
-       gimbal_vision_no_mode();
-       break;
-    }
+        gimbal_vision_no_mode();
+        break;
     case big_yaw_pc:
-    {
-    
-//    gimbal_vision_no_mode();
-      gimbal_vision_on_mode(mode);
-      break;
+        gimbal_vision_on_mode(mode);
+        break;
     }
-  }
-  
 }
 
+/* ======================== ÈÅ•ÊéßÊ®°Âºè (Êó†ËßÜËßâ) ======================== */
 
-
-
-void gimbal_vision_no_mode()
+void gimbal_vision_no_mode(void)
 {
-  gimbal.yaw_set-=sentry_system.set_yaw_in; 
-  kjkhd++;
-  gimbal.yaw_vision_set=INS.YawTotalAngle;
-  gimbal.if_update=1;
-  
-  gimbal.big_yaw_speed_set=pid_calc(&pid_yaw_angle,INS.YawTotalAngle,gimbal.yaw_set);
-  yaw_motor.Torque_SET  =pid_calc(&pid_yaw_speed,INS.Gyro[2],gimbal.big_yaw_speed_set);
+    gimbal.yaw_set -= sentry_system.set_yaw_in;
+    gimbal.yaw_vision_set = INS.YawTotalAngle;
+    gimbal.if_update = 1;
+
+    gimbal.big_yaw_speed_set = pid_calc(&pid_yaw_angle,
+        INS.YawTotalAngle, gimbal.yaw_set);
+    yaw_motor.Torque_SET = pid_calc(&pid_yaw_speed,
+        INS.Gyro[2], gimbal.big_yaw_speed_set);
 }
 
+/* ======================== ËßÜËßâÊ®°Âºè ======================== */
+
+void gimbal_vision_on_mode(gimbal_t *mode)
+{
+    if (decision.point == WE_FORTRESS_POINT
+        && decision.Judge_condition.IF_Arrived == 1) {
+        mode->gimbal_mode = gimbal_vision_mode;
+        gimbal_vision_set(mode);
+        mode->if_update = 1;
+    } else if (receive_gimbal_data.vision_state == vision_lost) {
+        mode->gimbal_mode = gimbal_curise_mode;
+        gimbal_curise_set(mode);
+        mode->if_update = 1;
+    } else {
+        mode->gimbal_mode = gimbal_vision_mode;
+        gimbal_vision_set(mode);
+    }
+}
+
+static void gimbal_curise_set(gimbal_t *mode)
+{
+    mode->yaw_vision_set += mode->curise_direction * yaw_cusise_diff;
+    mode->if_update       = 1;
+    mode->get_current_yaw = INS.YawTotalAngle;
+    gimbal.yaw_set        = INS.YawTotalAngle;
+
+    gimbal.big_yaw_speed_set = pid_calc(&pid_vision_yaw_angle,
+        INS.YawTotalAngle, gimbal.yaw_vision_set);
+    yaw_motor.Torque_SET = pid_calc(&pid_vision_yaw_speed,
+        INS.Gyro[2], gimbal.big_yaw_speed_set);
+}
+
+static void gimbal_vision_set(gimbal_t *mode)
+{
+    gimbal.yaw_set = INS.YawTotalAngle;
+    get_gimbal_response_state(mode);
+
+    /* Â∑¶Èôê‰Ωç ‚Üí ÂèçÂêëÂ∑°Ëà™ */
+    if (receive_gimbal_data.vision_state != vision_lost
+        && receive_gimbal_data.lock_state == left_lock
+        && mode->if_update == 1) {
+        mode->yaw_add         = receive_gimbal_data.small_yaw_add;
+        mode->get_current_yaw = INS.YawTotalAngle;
+        mode->curise_direction = -1 * direc;
+        mode->if_update       = 0;
+    }
+    /* Âè≥Èôê‰Ωç ‚Üí ÂèçÂêëÂ∑°Ëà™ */
+    else if (receive_gimbal_data.vision_state != vision_lost
+        && receive_gimbal_data.lock_state == right_lock
+        && mode->if_update == 1) {
+        mode->yaw_add         = receive_gimbal_data.small_yaw_add;
+        mode->get_current_yaw = INS.YawTotalAngle;
+        mode->curise_direction = 1 * direc;
+        mode->if_update       = 0;
+    }
+    /* Êó†ÈòªÊå° ‚Üí ‰øùÊåÅ */
+    else if (receive_gimbal_data.vision_state != vision_lost
+        && receive_gimbal_data.lock_state == no_block
+        && mode->if_update == 1) {
+        /* ‰øùÊåÅÂΩìÂâçÁõÆÊ†á */
+    }
+
+    gimbal.big_yaw_speed_set = pid_calc(&pid_vision_yaw_angle,
+        INS.YawTotalAngle, gimbal.yaw_vision_set);
+    yaw_motor.Torque_SET = pid_calc(&pid_vision_yaw_speed,
+        INS.Gyro[2], gimbal.big_yaw_speed_set);
+}
+
+/* ======================== Èôê‰ΩçÂìçÂ∫îÊ£ÄÊµã ======================== */
+
+static bool get_gimbal_response_state(gimbal_t *mode)
+{
+    if (fabsf(mode->yaw_vision_set - mode->get_current_yaw)
+        < compare_yaw_add(mode->yaw_add) && mode->if_update == 0) {
+        mode->yaw_vision_set += (mode->curise_direction == -1) ? -0.2f : 0.2f;
+        mode->if_update = 0;
+    } else {
+        mode->if_update = 1;
+    }
+    return (bool)mode->if_update;
+}
 
 float compare_yaw_add(float yaw_in)
 {
-  if(fabs(yaw_in)<50)
-  { 
-    yaw_in=50;
-  }
-  else yaw_in=fabs(yaw_in);
-  return yaw_in;
-}
-lock_state_t Last_lock_state;
-Vision_look_state_t Last_look_state;
-bool get_gimbal_response_state(gimbal_t *mode)
-{
-//»Áπ˚ºÏ≤‚µΩø®œﬁŒª¡ÀæÕ»√¥Ûyaw◊™£¨ƒø±Í÷µ¿€º”µΩ≤ªø®¡ÀæÕÕ£œ¬¿¥‘ŸΩ¯»ÎºÏ≤‚ƒ£ Ω,«“¥À ±‘ˆº”µƒ÷µŒ™¥Ûyawø®◊≈µƒÀ≤ ±”¶∏√‘ˆº”µƒ÷µ
-   if(fabs(mode->yaw_vision_set-mode->get_current_yaw)<compare_yaw_add(mode->yaw_add)&&mode->if_update==0)
-   { 
-     if(mode->curise_direction==-1)
-     { 
-       mode->yaw_vision_set-=0.2;
-     }
-     else 
-     {
-       mode->yaw_vision_set+=0.2;
-     }
-     mode->if_update=0;
-   }
-   else 
-   {
-     mode->if_update=1;
-   }
+    return (fabsf(yaw_in) < 50.0f) ? 50.0f : fabsf(yaw_in);
 }
 
-
-void gimbal_curise_set(gimbal_t *mode)
-{
- mode->yaw_vision_set+=mode->curise_direction*yaw_cusise_diff;
- mode->if_update=1;
- mode->get_current_yaw=INS.YawTotalAngle;
- gimbal.yaw_set=INS.YawTotalAngle;
- 
- gimbal.big_yaw_speed_set=pid_calc(&pid_vision_yaw_angle,INS.YawTotalAngle,gimbal.yaw_vision_set);
-  yaw_motor.Torque_SET  =pid_calc(&pid_vision_yaw_speed,INS.Gyro[2],gimbal.big_yaw_speed_set);
-}
-
-void gimbal_vision_set(gimbal_t *mode)
-{
-lokos++;
-
-gimbal.yaw_set=INS.YawTotalAngle;
-
-  get_gimbal_response_state(mode);
-  if(receive_gimbal_data.vision_state!=vision_lost&&receive_gimbal_data.lock_state==left_lock&&mode->if_update==1)
-   { 
-   mode->yaw_add=receive_gimbal_data.small_yaw_add;
-   mode->get_current_yaw=INS.YawTotalAngle;
-   mode->curise_direction=-1*direc;
-     mode->if_update=0;
-   }
-   else if(receive_gimbal_data.vision_state!=vision_lost&&receive_gimbal_data.lock_state==right_lock&&mode->if_update==1)
-   {
-      mode->yaw_add=receive_gimbal_data.small_yaw_add;
-   mode->get_current_yaw=INS.YawTotalAngle;
-   mode->curise_direction=1*direc;
-     mode->if_update=0;
-   }
-  else if(receive_gimbal_data.vision_state!=vision_lost&&receive_gimbal_data.lock_state==no_block&&mode->if_update==1)
-  {
-   mode->yaw_vision_set=mode->yaw_vision_set;
-  }
-   
-   
-  gimbal.big_yaw_speed_set=pid_calc(&pid_vision_yaw_angle,INS.YawTotalAngle,gimbal.yaw_vision_set);
-  yaw_motor.Torque_SET  =pid_calc(&pid_vision_yaw_speed,INS.Gyro[2],gimbal.big_yaw_speed_set);
-}
-
-uint8_t last_vision_mode;
-void gimbal_vision_on_mode(gimbal_t *mode)
-{
-  
-
-  
-  
-//  if(decision.Judge_condition.IF_Arrived==1)
-//  {
-     if(get_gimbal_com_count>100)
-     {
-       receive_gimbal_data.vision_state=vision_lost;
-     }
-     
-       if(decision.point==WE_FORTRESS_POINT&&decision.Judge_condition.IF_Arrived==1)
-  {
-  
-     mode->gimbal_mode=gimbal_vision_mode;
-        gimbal_vision_set(mode);
-//        gimbal_vision_no_mode();
-        mode->if_update=1;
-  }
-     
-  else if(receive_gimbal_data.vision_state==vision_lost)
-      {
-      
-        mode->gimbal_mode=gimbal_curise_mode;
-        gimbal_curise_set(mode);
-//        gimbal_vision_no_mode();
-        mode->if_update=1;
-      }
-      else 
-      {
-        mode->gimbal_mode=gimbal_vision_mode;
-//        gimbal_vision_no_mode();
-        gimbal_vision_set(mode);
-      }
-      
-//  }
-//  else 
-//  {
-////  gimbal_vision_no_mode();
-
-//gimbal_curise_set(mode);
-////    gimbal_navi_set(mode);
-//  }
-  
-  
-  
-}
-
-
-float yaw_kkp=1.9;
-float yaw_speed_kp_1=1.0;
+/* ======================== ÂØºËà™Ê®°Âºè ======================== */
 
 void gimbal_navi_set(gimbal_t *mode)
 {
- yaw_motor.Torque_SET=pid_calc(&pid_navi_yaw_speed,INS.Gyro[2]*yaw_speed_kp_1,navigation_rx.navi_wz*yaw_kkp);
- gimbal.yaw_set=INS.YawTotalAngle;
- gimbal.yaw_vision_set=INS.YawTotalAngle;
+    (void)mode;
+    yaw_motor.Torque_SET = pid_calc(&pid_navi_yaw_speed,
+        INS.Gyro[2] * 1.0f, navigation_rx.navi_wz * 1.9f);
+    gimbal.yaw_set       = INS.YawTotalAngle;
+    gimbal.yaw_vision_set = INS.YawTotalAngle;
 }
-
-
 
 
 

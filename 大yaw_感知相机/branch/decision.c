@@ -47,144 +47,60 @@
 decision_t decision;
 Sentry_cmd_t Sentry_cmd_send;
 
+static int hurt_time = 0;
 
-//每场场前确定打不打工程
-//#define if_shoot_Engineer
-//建图后确定到底是哪方建图的
-#define RED_START_NAVIGATION // 确定红方开始建图
-//提前写好蓝方建图和红方建图的代码在家里测试好了之后，去了比赛就可以快速修改
-//总共14个点位
-
-//float Red_Navi_position[DECISION_POSITION_NUM][2]  = { {  3.79   , 7.99 },//9.96 3.69
-//                                                       {  2.42  , 2.35 },
-//                                                       {  10.35 , 14.27 },//10.75 
-//                                                       {  8.5 , 7.5 },
-//                                                       {  8.5  , 7.5 },
-//                                                       {  6.65 , 9.1 },
-//                                                       {  6.28 , 6.84 },
-//                                                       {  15.75,9.39},
-//                                                       {  21.18, 5.67},
-//                                                       {  23.80, 7.59},
-//                                                       {  11.43, 4.36},
-//                                                       {  21.18, 5.67},
-//                                                       {  13.48, 8.98},
-//                                                       {  8.9 , 7.5}};
-float Red_Navi_position[DECISION_POSITION_NUM][2]  = { {  0   , 0 },//9.96 3.69
-                                                       {  2.42  , -2.35 },//训练
-                                                       {  10.35 , 14.27 },//10.75 
-                                                       {  8.5 , 7.5 },
-                                                       {  8.5  , 7.5 },
-                                                       {  6.65 , 9.1 },
-                                                       {  6.28 , 6.84 },
-                                                       {  15.75,9.39},
-                                                       {  21.18, 5.67},
-                                                       {  23.80, 7.59},
-                                                       {  11.43, 4.36},
-                                                       {  21.18, 5.67},
-                                                       {  4,-3},//训练
-                                                       {  8.9 , 7.5}};
-
-
-
-int iiipp;
-int huug;
- int hurt_time=0;
 void Auto_run(void const * argument)
 {
- Decision_Init(&decision);
- hurt_time=420;
+    (void)argument;
+    Decision_Init(&decision);
+    hurt_time = 420;
 
-  
- decision.If_point_change=0;
- memset(&decision,0,sizeof(decision_t));
- decision.Cmd_condition.if_update=1;
- memset(&Sentry_cmd_send,0,sizeof(Sentry_cmd_t));
+    decision.If_point_change = 0;
+    memset(&decision, 0, sizeof(decision_t));
+    decision.Cmd_condition.if_update = 1;
+    memset(&Sentry_cmd_send, 0, sizeof(Sentry_cmd_t));
 
-//decision.decision_mode=guard;
- huug++;
-// decision.Judge_condition.IF_Arrived=
-
- #ifdef if_shoot_Engineer
- Red_Navi_position[ENEMY_OUTPOST_PROTECT_POINT][0]=12.09;
- Red_Navi_position[ENEMY_OUTPOST_PROTECT_POINT][1]=8.9;
- 
- #endif
-   for(;;)
-   {
-   
-     //导航决策处理
-     Decison_State_Ctl(&decision);
-
-     //击打决策处理
-     sentry_shoot_decision(&decision);
-     //解析裁判系统信息
-     get_referr_data();
-     
-     
-     //哨兵自主决策相关指令处理
-     Sentry_cmd_decision(&decision);
-     
-     //导航点填充
-     decision_point_fill();
-     
-     //决策点推送至导航
-     Navigation_Tx_Send(&navigation_tx);
-     vTaskDelay(1);
-   }
+    for (;;) {
+        Decison_State_Ctl(&decision);
+        sentry_shoot_decision(&decision);
+        get_referr_data();
+        Sentry_cmd_decision(&decision);
+        decision_point_fill();
+        Navigation_Tx_Send(&navigation_tx);
+        vTaskDelay(1);
+    }
 }
-int mnmnk;
 void AGV_auto_mode(decision_t *mode)
 {
-
-//mnmnk++;
-  if(game_state.game_progress==4)
-  {
-  
-    if(rc_ctrl.rc.s_l==1&&rc_ctrl.rc.s_r==1)
-    {
-      mode->decision_mode=extreme;
+    if (game_state.game_progress == 4) {
+        if (rc_ctrl.rc.s_l == 1 && rc_ctrl.rc.s_r == 1) {
+            mode->decision_mode = extreme;
+        } else if (rc_ctrl.rc.s_l == 3 && rc_ctrl.rc.s_r == 3) {
+            mode->decision_mode = conservative;
+        } else if (rc_ctrl.rc.s_l == 3 && rc_ctrl.rc.s_r == 2) {
+            mode->decision_mode = flying;
+        } else if (rc_ctrl.rc.s_l == 3 && rc_ctrl.rc.s_r == 1) {
+            mode->decision_mode = patrol;
+        } else if (rc_ctrl.rc.s_l == 1 && rc_ctrl.rc.s_r == 3) {
+            mode->decision_mode = protect;
+        }
+    } else {
+        mode->decision_mode = extreme;
     }
-     else if(rc_ctrl.rc.s_l==3&&rc_ctrl.rc.s_r==3)
-    {
-      mode->decision_mode=conservative;
-    }
-    else if(rc_ctrl.rc.s_l==3&&rc_ctrl.rc.s_r==2)
-    {
-      mode->decision_mode=flying;
-    }   
-    else if(rc_ctrl.rc.s_l==3&&rc_ctrl.rc.s_r==1)
-    {
-      mode->decision_mode=patrol;
-    }    
-    else if(rc_ctrl.rc.s_l==1&&rc_ctrl.rc.s_r==3)
-    {
-      mode->decision_mode=protect;
-    }
-    
-  }
-  else 
-  {
-  
-//mnmnk++;
-      mode->decision_mode=extreme;
-  }
 }
 
-void get_referr_data()
+void get_referr_data(void)
 {
- if( robot_status.robot_id <= 9 && robot_status.robot_id >0 )
-		 decision.robot_data.robot_color = red ;
-		 else if( robot_status.robot_id >= 101)
-			decision.robot_data.robot_color = blue ;
-		 else
-			decision.robot_data.robot_color = NO_CONTACT ;
-      
-      
-      if(decision.robot_data.robot_color==red)
-      {
-        Robot_ID=UI_Data_RobotID_RSentry;
-      }
-      else Robot_ID = UI_Data_RobotID_BSentry;
+    if (robot_status.robot_id <= 9 && robot_status.robot_id > 0) {
+        decision.robot_data.robot_color = red;
+    } else if (robot_status.robot_id >= 101) {
+        decision.robot_data.robot_color = blue;
+    } else {
+        decision.robot_data.robot_color = NO_CONTACT;
+    }
+
+    Robot_ID = (decision.robot_data.robot_color == red)
+        ? UI_Data_RobotID_RSentry : UI_Data_RobotID_BSentry;
 }
 
 
@@ -232,106 +148,58 @@ void Sentry_cmd_decision(decision_t *mode)
 }
 
 
-int kmnjnk;
 void Decision_Init(decision_t *mode)
 {
-kmnjnk++;
-
-  mode->point=INIT_PACK_POINT;
+    mode->point = INIT_PACK_POINT;
 }
 
-//
-//目前是分区赛决策
 void Decison_State_Ctl(decision_t *mode)
 {
+    if (game_state.game_progress == 4) {
+        Judge_Continuous_Handle(&decision.Judge_condition);
+        AGV_auto_mode(mode);
+        decision_point_chose(mode);
+    } else {
+        /* 非比赛状态：重置条件 */
+        mode->decision_mode = extreme;
+        If_Point_arrived();
+        judge_if_location_over(&decision.Judge_condition);
+        mode->Judge_condition.IF_10s_NotHurted = 1;
+        mode->Judge_condition.IF_3s_NotFound   = 1;
+        mode->Judge_condition.IF_5s_NotFound   = 1;
+        mode->Judge_condition.IF_10s_NotFound  = 1;
+        mode->Judge_condition.IF_HP_Less_50    = 0;
+        mode->Judge_condition.IF_HP_Less_100   = 0;
+        mode->Judge_condition.IF_outpost_destroyed = 0;
+        mode->Judge_condition.IF_fire_lock     = 0;
+        mode->Judge_condition.IF_allowance_less_50 = 0;
+        mode->Judge_condition.IF_HP_recover    = 1;
+        mode->Judge_condition.If_enemy_outpost_lock = 0;
+        judge_if_on_toss(&mode->Judge_condition);
+        judge_if_moving_v(&mode->Judge_condition);
+        mode->Judge_condition.If_chassis_weak  = 0;
+        mode->Judge_condition.IF_need_to_protect = 0;
+        judge_if_need_to_protect(&decision.Judge_condition);
+        mode->Judge_condition.IF_base_armor_spred = 0;
+        mode->Judge_condition.If_fortress_free  = 1;
+        mode->Judge_condition.If_get_allow_17  = 0;
+        mode->Judge_condition.If_chip_base     = 0;
+        mode->Judge_condition.IF_3s_NotHurted  = 1;
+        mode->Judge_condition.IF_5s_NotHurted  = 1;
+        mode->Judge_condition.If_close_to_enemy_out = 0;
+        judge_if_moving_v(&mode->Judge_condition);
 
-  if(game_state.game_progress==4)
-  {
-  //决策判断条件处理
-     Judge_Continuous_Handle(&decision.Judge_condition);
-     
-     
-     //决策的模式处理，根据遥控器来提前确认决策逻辑
-     AGV_auto_mode(mode);
-     
-     
-   //决策模式处理（自主决策加云台手决策）
-     decision_point_chose(mode);
-     
+        lock_dart_count = 0;
+        if_random_dart  = 0;
+        last_dart_time  = 0;
+        if_update       = 0;
+        hurt_time       = 430;
+        Last_base_hurt_time = 430;
+        decision.keyboard_disable = 0;
+        memset(&map_command, 0, sizeof(map_command));
 
-  }
-  else 
-  {
-  
-  
-  
-  //决策条件清零
-  mode->decision_mode=extreme;
-//  mode->decision_mode=guard;
-  
-  If_Point_arrived();
-  judge_if_location_over(&decision.Judge_condition);
-//  mode->Judge_condition.IF_Arrived = judge_if_location_over();
-  mode->Judge_condition.IF_10s_NotHurted = 1;
-  mode->Judge_condition.IF_3s_NotFound = 1;
-  mode->Judge_condition.IF_5s_NotFound = 1;
-  mode->Judge_condition.IF_10s_NotFound = 1;
-  mode->Judge_condition.IF_HP_Less_50 = 0;
-  mode->Judge_condition.IF_HP_Less_100 = 0;
-  mode->Judge_condition.IF_outpost_destroyed = 0;
-  mode->Judge_condition.IF_fire_lock = 0;
-  mode->Judge_condition.IF_allowance_less_50 = 0;
-  mode->Judge_condition.IF_HP_recover = 1;
-  mode->Judge_condition.If_enemy_outpost_lock=0;
-//  mode->Judge_condition.If_on_toss=
-//  mode->Judge_condition.If_moving_v=
-  judge_if_on_toss(&mode->Judge_condition);
-  judge_if_moving_v(&mode->Judge_condition);
-  mode->Judge_condition.If_chassis_weak=0;
-  mode->Judge_condition.IF_need_to_protect=0;
-  judge_if_need_to_protect(&decision.Judge_condition);
-  mode->Judge_condition.IF_base_armor_spred=0;
-  mode->Judge_condition.If_fortress_free=1;
-  mode->Judge_condition.If_get_allow_17=0;
-  mode->Judge_condition.If_chip_base=0;
-  mode->Judge_condition.IF_3s_NotHurted=1;
-  mode->Judge_condition.IF_5s_NotHurted=1;
-  
-  mode->Judge_condition.If_close_to_enemy_out=0;
-  judge_if_moving_v(&mode->Judge_condition);
-  
-
-  lock_dart_count=0;
-  if_random_dart=0;
-  last_dart_time=0;
-  if_update=0;
-  hurt_time=430;
-  Last_base_hurt_time=430;
-  decision.keyboard_disable=0;
-      memset(&map_command,0,sizeof(map_command));
-//   sentry_extreme_decision(mode);
-  //导航至启动区
-// mode->point= ENEMY_OUTPOST_POINT;
-  
-  //决策的模式处理，根据遥控器来提前确认决策逻辑
-//     AGV_auto_mode(mode);
-     
-     
-   //决策模式处理（自主决策加云台手决策）
-//     decision_point_chose(mode);
-//  mode->point=WE_FORTRESS_POINT;
-
-  
-//     sentry_air_control_decision(mode);
-  
-  
-  
-mode->point=INIT_PACK_POINT;
-////mode->point=WE_DEPOT_POINT;
-  }
-  
-  
-  
+        mode->point = INIT_PACK_POINT;
+    }
 }
 uint8_t last_decision_point;
 
@@ -610,13 +478,8 @@ void sentry_extreme_decision(decision_t *mode)
   
   }
 }
-int kofjfs;
-//稍微没有那么激进的决策 考虑是否添加打前哨 WE_PATROL_POINT WE_FORTRESS_POINT WE_FLYING_POINT
 void sentry_conservative_decision(decision_t *mode)
 {
-  
-  
-  kofjfs++;
   switch(mode->point)
   {
     case INIT_PACK_POINT:
