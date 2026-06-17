@@ -58,13 +58,13 @@ typedef struct kf_t
     uint8_t UseAutoAdjustment;
     uint8_t MeasurementValidNum;
 
-    uint8_t *MeasurementMap;      // é‡æµ‹ä¸çŠ¶æ€çš„å…³ç³» how measurement relates to the state
-    float *MeasurementDegree;     // æµ‹é‡å€¼å¯¹åº”HçŸ©é˜µå…ƒç´ å€¼ elements of each measurement in H
-    float *MatR_DiagonalElements; // é‡æµ‹æ–¹å·® variance for each measurement
-    float *StateMinVariance;      // æœ€å°æ–¹å·® é¿å…æ–¹å·®è¿‡åº¦æ”¶æ•› suppress filter excessive convergence
+    uint8_t *MeasurementMap;      // Á¿²âÓë×´Ì¬µÄ¹ØÏµ how measurement relates to the state
+    float *MeasurementDegree;     // ²âÁ¿Öµ¶ÔÓ¦H¾ØÕóÔªËØÖµ elements of each measurement in H
+    float *MatR_DiagonalElements; // Á¿²â·½²î variance for each measurement
+    float *StateMinVariance;      // ×îĞ¡·½²î ±ÜÃâ·½²î¹ı¶ÈÊÕÁ² suppress filter excessive convergence
     uint8_t *temp;
 
-    // é…åˆç”¨æˆ·å®šä¹‰å‡½æ•°ä½¿ç”¨,ä½œä¸ºæ ‡å¿—ä½ç”¨äºåˆ¤æ–­æ˜¯å¦è¦è·³è¿‡æ ‡å‡†KFä¸­äº”ä¸ªç¯èŠ‚ä¸­çš„ä»»æ„ä¸€ä¸ª
+    // ÅäºÏÓÃ»§¶¨Òåº¯ÊıÊ¹ÓÃ,×÷Îª±êÖ¾Î»ÓÃÓÚÅĞ¶ÏÊÇ·ñÒªÌø¹ı±ê×¼KFÖĞÎå¸ö»·½ÚÖĞµÄÈÎÒâÒ»¸ö
     uint8_t SkipEq1, SkipEq2, SkipEq3, SkipEq4, SkipEq5;
 
     // definiion of struct mat: rows & cols & pointer to vars
@@ -84,7 +84,7 @@ typedef struct kf_t
 
     int8_t MatStatus;
 
-    // ç”¨æˆ·å®šä¹‰å‡½æ•°,å¯ä»¥æ›¿æ¢æˆ–æ‰©å±•åŸºå‡†KFçš„åŠŸèƒ½
+    // ÓÃ»§¶¨Òåº¯Êı,¿ÉÒÔÌæ»»»òÀ©Õ¹»ù×¼KFµÄ¹¦ÄÜ
     void (*User_Func0_f)(struct kf_t *kf);
     void (*User_Func1_f)(struct kf_t *kf);
     void (*User_Func2_f)(struct kf_t *kf);
@@ -93,7 +93,7 @@ typedef struct kf_t
     void (*User_Func5_f)(struct kf_t *kf);
     void (*User_Func6_f)(struct kf_t *kf);
     
-    // çŸ©é˜µå­˜å‚¨ç©ºé—´æŒ‡é’ˆ
+    // ¾ØÕó´æ´¢¿Õ¼äÖ¸Õë
     float *xhat_data, *xhatminus_data;
     float *u_data;
     float *z_data;

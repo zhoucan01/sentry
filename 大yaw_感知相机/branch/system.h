@@ -115,7 +115,7 @@ void remote_offline_set(sentry_system_t *mode);
 void shoot_mode_chose(sentry_system_t *mode);
 
 void choose_control_mode(sentry_system_t *mode);
-uint8_t judeg_if_imu_error();
+uint8_t judg_if_imu_error(void);
 //void chassis_move_limit(sentry_system_t *mode);
 extern sentry_system_t sentry_system;
 

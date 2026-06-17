@@ -12,6 +12,7 @@
 #include "user_lib.h"
 #include "detect_task.h"
 #include "CAN_transmit.h"
+#include "detect_task.h"
 //pid_struct_t pid_steer_ecd[4];
 //pid_struct_t pid_steer_speed[4];
 //pid_struct_t pid_chassis_speed[4];
@@ -139,15 +140,16 @@ void chassis_data_updata(chassis_t *mode)
     ||(toe_offline[CHASSIS_MOTOR2_TOE].communication_state==COMMUNICATION_NONE)
     ||(toe_offline[CHASSIS_MOTOR3_TOE].communication_state==COMMUNICATION_NONE)
     ||(toe_offline[CHASSIS_MOTOR4_TOE].communication_state==COMMUNICATION_NONE)
-    || error_time>100
+//    || error_time>100
 //    ||steer_if_ok(steer_motor[0].motor_tar.set_current,steer_motor[0].motor_measure.feedback_current)==0
 //    ||steer_if_ok(steer_motor[1].motor_tar.set_current,steer_motor[1].motor_measure.feedback_current)==0
 //    ||steer_if_ok(steer_motor[2].motor_tar.set_current,steer_motor[2].motor_measure.feedback_current)==0
-//    ||steer_if_ok(steer_motor[3].motor_tar.set_current,steer_motor[3].motor_measure.feedback_current)==0
-    ||(toe_offline[STEER_MOTOR1_TOE].communication_state==COMMUNICATION_NONE)
-    ||(toe_offline[STEER_MOTOR2_TOE].communication_state==COMMUNICATION_NONE)
-    ||(toe_offline[STEER_MOTOR3_TOE].communication_state==COMMUNICATION_NONE)
-    ||(toe_offline[STEER_MOTOR4_TOE].communication_state==COMMUNICATION_NONE)    )
+////    ||steer_if_ok(steer_motor[3].motor_tar.set_current,steer_motor[3].motor_measure.feedback_current)==0
+//    ||(toe_offline[STEER_MOTOR1_TOE].communication_state==COMMUNICATION_NONE)
+//    ||(toe_offline[STEER_MOTOR2_TOE].communication_state==COMMUNICATION_NONE)
+//    ||(toe_offline[STEER_MOTOR3_TOE].communication_state==COMMUNICATION_NONE)
+//    ||(toe_offline[STEER_MOTOR4_TOE].communication_state==COMMUNICATION_NONE)
+    )
 
  { 
  
@@ -401,11 +403,11 @@ void printf_task(void const * argument)
 {
     while (1)
     {
-        printf("%f,%f,%f,%f,%f\n",
-               (float)error_time,
-               (float)steer_motor[0].motor_measure.feedback_current,
-               (float)steer_motor[0].motor_tar.set_current,
-               0.0f, 0.0f);
+//        printf("%f,%f,%f,%f,%f\n",
+//               (float)error_time,
+//               (float)steer_motor[0].motor_measure.feedback_current,
+//               (float)steer_motor[0].motor_tar.set_current,
+//               0.0f, 0.0f);
         osDelay(5);
     }
 }

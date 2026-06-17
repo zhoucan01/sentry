@@ -20,8 +20,11 @@
 
 //#include "Nautilus_Vision.h"
 
+// È«¾ÖINS½á¹¹Ìå(º¬ËÄÔªÊý/×ËÌ¬½Ç/ÔË¶¯¼ÓËÙ¶È)
 INS_t INS;
+// IMU°²×°Îó²î²ÎÊý(±ê¶¨ÓÃ)
 IMU_Param_t IMU_Param;
+// IMUÎÂ¿ØPID
 PID_t TempCtrl = {0};
 
 const float xb[3] = {1, 0, 0};
@@ -47,6 +50,7 @@ void StartINSTask(void)
 }
 
 
+// INS³õÊ¼»¯(IMUÐ£Õý+EKF²ÎÊý+ÎÂ¿ØPID)
 void INS_Init(void)
 {
     IMU_Param.scale[X] = 1;
@@ -65,6 +69,7 @@ void INS_Init(void)
     INS.AccelLPF = 0.0085;
 }
 
+// INS 1kHzÈÎÎñ(¶ÁIMU->EKF½âËã->ÌáÈ¡×ËÌ¬->ÎÂ¿Ø)
 void INS_Task(void)
 {
     static uint32_t count = 0;
@@ -75,6 +80,7 @@ void INS_Task(void)
     // ins update
     if ((count % 1) == 0)
     {
+        // ¶ÁÈ¡BMI088(½ÇËÙ¶È+¼ÓËÙ¶È)
         BMI088_Read(&BMI088);
 
         INS.Accel[X] = BMI088.Accel[X];
@@ -84,33 +90,33 @@ void INS_Task(void)
         INS.Gyro[Y] = BMI088.Gyro[Y];
         INS.Gyro[Z] = BMI088.Gyro[Z];
 
-        // demo function,ç”¨äºŽä¿®æ­£å®‰è£…è¯¯å·®,å¯ä»¥ä¸ç®¡,æœ¬demoæš‚æ—¶æ²¡ç”¨
+        // demo function,ÓÃÓÚÐÞÕý°²×°Îó²î,¿ÉÒÔ²»¹Ü,±¾demoÔÝÊ±Ã»ÓÃ
         IMU_Param_Correction(&IMU_Param, INS.Gyro, INS.Accel);
 
-        // è®¡ç®—é‡åŠ›åŠ é€Ÿåº¦çŸ¢é‡å’Œbç³»çš„XYä¸¤è½´çš„å¤¹è§’,å¯ç”¨ä½œåŠŸèƒ½æ‰©å±•,æœ¬demoæš‚æ—¶æ²¡ç”¨
+        // ¼ÆËãÖØÁ¦¼ÓËÙ¶ÈÊ¸Á¿ºÍbÏµµÄXYÁ½ÖáµÄ¼Ð½Ç,¿ÉÓÃ×÷¹¦ÄÜÀ©Õ¹,±¾demoÔÝÊ±Ã»ÓÃ
         INS.atanxz = -atan2f(INS.Accel[X], INS.Accel[Z]) * 180 / PI;
         INS.atanyz = atan2f(INS.Accel[Y], INS.Accel[Z]) * 180 / PI;
 
-        // æ ¸å¿ƒå‡½æ•°,EKFæ›´æ–°å››å…ƒæ•°
+        // ºËÐÄº¯Êý,EKF¸üÐÂËÄÔªÊý
         IMU_QuaternionEKF_Update(INS.Gyro[X], INS.Gyro[Y], INS.Gyro[Z], INS.Accel[X], INS.Accel[Y], INS.Accel[Z], dt);
 
         memcpy(INS.q, QEKF_INS.q, sizeof(QEKF_INS.q));
 
-        // æœºä½“ç³»åŸºå‘é‡è½¬æ¢åˆ°å¯¼èˆªåæ ‡ç³»ï¼Œæœ¬ä¾‹é€‰å–æƒ¯æ€§ç³»ä¸ºå¯¼èˆªç³»
+        // »úÌåÏµ»ùÏòÁ¿×ª»»µ½µ¼º½×ø±êÏµ£¬±¾ÀýÑ¡È¡¹ßÐÔÏµÎªµ¼º½Ïµ
         BodyFrameToEarthFrame(xb, INS.xn, INS.q);
         BodyFrameToEarthFrame(yb, INS.yn, INS.q);
         BodyFrameToEarthFrame(zb, INS.zn, INS.q);
 
-        // å°†é‡åŠ›ä»Žå¯¼èˆªåæ ‡ç³»nè½¬æ¢åˆ°æœºä½“ç³»b,éšåŽæ ¹æ®åŠ é€Ÿåº¦è®¡æ•°æ®è®¡ç®—è¿åŠ¨åŠ é€Ÿåº¦
+        // ½«ÖØÁ¦´Óµ¼º½×ø±êÏµn×ª»»µ½»úÌåÏµb,Ëæºó¸ù¾Ý¼ÓËÙ¶È¼ÆÊý¾Ý¼ÆËãÔË¶¯¼ÓËÙ¶È
         float gravity_b[3];
         EarthFrameToBodyFrame(gravity, gravity_b, INS.q);
-        for (uint8_t i = 0; i < 3; i++) // åŒæ ·è¿‡ä¸€ä¸ªä½Žé€šæ»¤æ³¢
+        for (uint8_t i = 0; i < 3; i++) // Í¬Ñù¹ýÒ»¸öµÍÍ¨ÂË²¨
         {
             INS.MotionAccel_b[i] = (INS.Accel[i] - gravity_b[i]) * dt / (INS.AccelLPF + dt) + INS.MotionAccel_b[i] * INS.AccelLPF / (INS.AccelLPF + dt);
         }
-        BodyFrameToEarthFrame(INS.MotionAccel_b, INS.MotionAccel_n, INS.q); // è½¬æ¢å›žå¯¼èˆªç³»n
+        BodyFrameToEarthFrame(INS.MotionAccel_b, INS.MotionAccel_n, INS.q); // ×ª»»»Øµ¼º½Ïµn
 
-        // èŽ·å–æœ€ç»ˆæ•°æ®
+        // »ñÈ¡×îÖÕÊý¾Ý
         INS.Yaw = QEKF_INS.Yaw;
         INS.Pitch = QEKF_INS.Pitch;
         INS.Roll = QEKF_INS.Roll;
@@ -176,12 +182,12 @@ void EarthFrameToBodyFrame(const float *vecEF, float *vecBF, float *q)
 }
 
 /**
- * @brief reserved.ç”¨äºŽä¿®æ­£IMUå®‰è£…è¯¯å·®ä¸Žæ ‡åº¦å› æ•°è¯¯å·®,å³é™€èžºä»ªè½´å’Œäº‘å°è½´çš„å®‰è£…åç§»
+ * @brief reserved.ÓÃÓÚÐÞÕýIMU°²×°Îó²îÓë±ê¶ÈÒòÊýÎó²î,¼´ÍÓÂÝÒÇÖáºÍÔÆÌ¨ÖáµÄ°²×°Æ«ÒÆ
  *
  *
- * @param param IMUå‚æ•°
- * @param gyro  è§’é€Ÿåº¦
- * @param accel åŠ é€Ÿåº¦
+ * @param param IMU²ÎÊý
+ * @param gyro  ½ÇËÙ¶È
+ * @param accel ¼ÓËÙ¶È
  */
 static void IMU_Param_Correction(IMU_Param_t *param, float gyro[3], float accel[3])
 {
@@ -246,7 +252,7 @@ static void IMU_Param_Correction(IMU_Param_t *param, float gyro[3], float accel[
 }
 
 /**
- * @brief æ¸©åº¦æŽ§åˆ¶
+ * @brief ÎÂ¶È¿ØÖÆ
  * 
  */
 void IMU_Temperature_Ctrl(void)
@@ -309,3 +315,4 @@ void EularAngleToQuaternion(float Yaw, float Pitch, float Roll, float *q)
     q[2] = sinPitch * cosRoll * sinYaw + cosPitch * sinRoll * cosYaw;
     q[3] = cosPitch * cosRoll * sinYaw - sinPitch * sinRoll * cosYaw;
 }
+

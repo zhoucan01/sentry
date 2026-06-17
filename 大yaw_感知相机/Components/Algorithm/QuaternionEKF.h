@@ -32,8 +32,8 @@ typedef struct
     uint64_t ErrorCount;
     uint64_t UpdateCount;
 
-    float q[4];        // å››å…ƒæ•°ä¼°è®¡å€¼
-    float GyroBias[3]; // é™€èºä»ªé›¶åä¼°è®¡å€¼
+    float q[4];        // ËÄÔªÊı¹À¼ÆÖµ
+    float GyroBias[3]; // ÍÓÂİÒÇÁãÆ«¹À¼ÆÖµ
 
     float Gyro[3];
     float Accel[3];
@@ -51,15 +51,15 @@ typedef struct
 
     float YawTotalAngle;
 
-    float Q1; // å››å…ƒæ•°æ›´æ–°è¿‡ç¨‹å™ªå£°
-    float Q2; // é™€èºä»ªé›¶åè¿‡ç¨‹å™ªå£°
-    float R;  // åŠ é€Ÿåº¦è®¡é‡æµ‹å™ªå£°
+    float Q1; // ËÄÔªÊı¸üĞÂ¹ı³ÌÔëÉù
+    float Q2; // ÍÓÂİÒÇÁãÆ«¹ı³ÌÔëÉù
+    float R;  // ¼ÓËÙ¶È¼ÆÁ¿²âÔëÉù
 
-    float dt; // å§¿æ€æ›´æ–°å‘¨æœŸ
+    float dt; // ×ËÌ¬¸üĞÂÖÜÆÚ
     mat ChiSquare;
-    float ChiSquare_Data[1];      // å¡æ–¹æ£€éªŒæ£€æµ‹å‡½æ•°
-    float ChiSquareTestThreshold; // å¡æ–¹æ£€éªŒé˜ˆå€¼
-    float lambda;                 // æ¸æ¶ˆå› å­
+    float ChiSquare_Data[1];      // ¿¨·½¼ìÑé¼ì²âº¯Êı
+    float ChiSquareTestThreshold; // ¿¨·½¼ìÑéãĞÖµ
+    float lambda;                 // ½¥ÏûÒò×Ó
 
     int16_t YawRoundCount;
 

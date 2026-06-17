@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    gimbal_big_yaw.c
- * @brief   大Yaw云台控制 — 遥控/视觉/导航三模式切换 + 限位巡航
+ * @brief   �?Yaw云台控制 �? 遥控/视�??/导航三模式切�? + 限位巡航
  * @author  周灿
  ******************************************************************************
  */
@@ -17,19 +17,19 @@
 #include "navigation.h"
 #include "stdbool.h"
 
-/* ---- PID控制器 ---- */
+/* ---- PID控制�? ---- */
 pid_struct_t pid_yaw_angle;
 pid_struct_t pid_yaw_speed;
 pid_struct_t pid_vision_yaw_angle;
 pid_struct_t pid_vision_yaw_speed;
 pid_struct_t pid_navi_yaw_speed;
 
-/* ---- 全局状态 ---- */
+/* ---- 全局状�? ---- */
 com_mode_t gim_com;
 com_mode_t last_gim;
 gimbal_t gimbal;
 
-static int      big_yaw_lost_count;   /* 大yaw断电计数 */
+int      big_yaw_lost_count;   /* �?yaw�?电�?�数 */
 static uint8_t  last_vision_mode;
 static lock_state_t     Last_lock_state;
 static Vision_look_state_t Last_look_state;
@@ -39,8 +39,9 @@ static void get_big_gimbal_com(void);
 static void gimbal_curise_set(gimbal_t *mode);
 static void gimbal_vision_set(gimbal_t *mode);
 static bool get_gimbal_response_state(gimbal_t *mode);
+static float compare_yaw_add(float yaw_in);
 
-/* ======================== 初始化 ======================== */
+/* ======================== 初�?�化 ======================== */
 
 void gimbal_pid_init(void)
 {
@@ -51,7 +52,7 @@ void gimbal_pid_init(void)
     pid_init(&pid_vision_yaw_speed, 1.0f, 0.0f, 0.0f, 0.0f, 10.0f);
 }
 
-/* ======================== 主任务 ======================== */
+/* ======================== 主任�? ======================== */
 
 void big_yaw_run(void const *argument)
 {
@@ -77,7 +78,7 @@ void big_yaw_run(void const *argument)
     }
 }
 
-/* ======================== 通信状态检测 ======================== */
+/* ======================== 通信状态�?��? ======================== */
 
 static void get_big_gimbal_com(void)
 {
@@ -117,7 +118,7 @@ void gimbal_mode_set(gimbal_t *mode)
     }
 }
 
-/* ======================== 遥控模式 (无视觉) ======================== */
+/* ======================== 遥控模式 (无�?��??) ======================== */
 
 void gimbal_vision_no_mode(void)
 {
@@ -131,7 +132,7 @@ void gimbal_vision_no_mode(void)
         INS.Gyro[2], gimbal.big_yaw_speed_set);
 }
 
-/* ======================== 视觉模式 ======================== */
+/* ======================== 视�?�模�? ======================== */
 
 void gimbal_vision_on_mode(gimbal_t *mode)
 {
@@ -168,7 +169,7 @@ static void gimbal_vision_set(gimbal_t *mode)
     gimbal.yaw_set = INS.YawTotalAngle;
     get_gimbal_response_state(mode);
 
-    /* 左限位 → 反向巡航 */
+    /* 左限�? �? 反向巡航 */
     if (receive_gimbal_data.vision_state != vision_lost
         && receive_gimbal_data.lock_state == left_lock
         && mode->if_update == 1) {
@@ -177,7 +178,7 @@ static void gimbal_vision_set(gimbal_t *mode)
         mode->curise_direction = -1 * direc;
         mode->if_update       = 0;
     }
-    /* 右限位 → 反向巡航 */
+    /* 右限�? �? 反向巡航 */
     else if (receive_gimbal_data.vision_state != vision_lost
         && receive_gimbal_data.lock_state == right_lock
         && mode->if_update == 1) {
@@ -186,11 +187,11 @@ static void gimbal_vision_set(gimbal_t *mode)
         mode->curise_direction = 1 * direc;
         mode->if_update       = 0;
     }
-    /* 无阻挡 → 保持 */
+    /* 无阻�? �? 保持 */
     else if (receive_gimbal_data.vision_state != vision_lost
         && receive_gimbal_data.lock_state == no_block
         && mode->if_update == 1) {
-        /* 保持当前目标 */
+        /* 保持当前�?�? */
     }
 
     gimbal.big_yaw_speed_set = pid_calc(&pid_vision_yaw_angle,
@@ -199,7 +200,7 @@ static void gimbal_vision_set(gimbal_t *mode)
         INS.Gyro[2], gimbal.big_yaw_speed_set);
 }
 
-/* ======================== 限位响应检测 ======================== */
+/* ======================== 限位响应检�? ======================== */
 
 static bool get_gimbal_response_state(gimbal_t *mode)
 {
@@ -213,7 +214,7 @@ static bool get_gimbal_response_state(gimbal_t *mode)
     return (bool)mode->if_update;
 }
 
-float compare_yaw_add(float yaw_in)
+static float compare_yaw_add(float yaw_in)
 {
     return (fabsf(yaw_in) < 50.0f) ? 50.0f : fabsf(yaw_in);
 }

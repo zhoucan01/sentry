@@ -25,16 +25,16 @@
 
 typedef struct
 {
-    float q[4]; // å››å…ƒæ•°ä¼°è®¡å€¼
+    float q[4]; // ËÄÔªÊı¹À¼ÆÖµ
 
-    float Gyro[3];  // è§’é€Ÿåº¦
-    float Accel[3]; // åŠ é€Ÿåº¦
-    float MotionAccel_b[3]; // æœºä½“åæ ‡åŠ é€Ÿåº¦
-    float MotionAccel_n[3]; // ç»å¯¹ç³»åŠ é€Ÿåº¦
+    float Gyro[3];  // ½ÇËÙ¶È
+    float Accel[3]; // ¼ÓËÙ¶È
+    float MotionAccel_b[3]; // »úÌå×ø±ê¼ÓËÙ¶È
+    float MotionAccel_n[3]; // ¾ø¶ÔÏµ¼ÓËÙ¶È
 
-    float AccelLPF; // åŠ é€Ÿåº¦ä½é€šæ»¤æ³¢ç³»æ•°
+    float AccelLPF; // ¼ÓËÙ¶ÈµÍÍ¨ÂË²¨ÏµÊı
 
-    // åŠ é€Ÿåº¦åœ¨ç»å¯¹ç³»çš„å‘é‡è¡¨ç¤º
+    // ¼ÓËÙ¶ÈÔÚ¾ø¶ÔÏµµÄÏòÁ¿±íÊ¾
     float xn[3];
     float yn[3];
     float zn[3];
@@ -42,7 +42,7 @@ typedef struct
     float atanxz;
     float atanyz;
 
-    // ä½å§¿
+    // Î»×Ë
     float Roll;
     float Pitch;
     float Yaw;
@@ -53,7 +53,7 @@ typedef struct
 
 
 /**
- * @brief ç”¨äºä¿®æ­£å®‰è£…è¯¯å·®çš„å‚æ•°,demoä¸­å¯æ— è§†
+ * @brief ÓÃÓÚĞŞÕı°²×°Îó²îµÄ²ÎÊı,demoÖĞ¿ÉÎŞÊÓ
  * 
  */
 typedef struct
@@ -80,3 +80,4 @@ void BodyFrameToEarthFrame(const float *vecBF, float *vecEF, float *q);
 void EarthFrameToBodyFrame(const float *vecEF, float *vecBF, float *q);
 
 #endif
+

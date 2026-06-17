@@ -61,8 +61,8 @@ static void RotateSpeedToBase(const speed_t *in, float diff_angle, speed_t *out)
 static float CalcMotorPower(float kp, float kw, float ki, float constant,
                             float speed_rpm, float set_current);
 
-/* 功率限制核心: 将一组电机功率缩放到目标上限 */
-static void ApplyPowerLimit(float kp, float kw, float ki, float constant,
+/* 功率限制核心: 将一组电机功率缩放到目标上限, 返回限制后的实际总功率 */
+static float ApplyPowerLimit(float kp, float kw, float ki, float constant,
                               motor_data_t *motors, float power_budget, int count);
 /* 舵角劣弧优化: 在8192编码器范围内选择最短路径 */
 static void ResolveSteerShortArc(float *ecd_target, const float *ecd_current,
@@ -103,8 +103,9 @@ static float CalcMotorPower(float kp, float kw, float ki, float constant,
  * @note   从 P = kp·I·ω + kw·ω? + ki·I? + const 反解 I:
  *         ki·I? + kp·ω·I + (kw·ω? + const - P_target) = 0
  *         I = (-kp·ω ± sqrt((kp·ω)? - 4·ki·(kw·ω?+const-P_target))) / (2·ki)
+ * @return  未超限时返回原始总功率, 超限时返回 power_budget
  */
-static void ApplyPowerLimit(float kp, float kw, float ki, float constant,
+static float ApplyPowerLimit(float kp, float kw, float ki, float constant,
                               motor_data_t *motors, float power_budget, int count)
 {
     /* 计算当前总功率 */
@@ -117,8 +118,9 @@ static void ApplyPowerLimit(float kp, float kw, float ki, float constant,
         if (power[i] > 0.0f) total_power += power[i];
     }
 
-    if (total_power <= power_budget) return;
+    if (total_power <= power_budget) return total_power;
 
+    /* 超限: 等比例缩放电流至 budget, 直接返回 budget (误差可忽略) */
     float scale = power_budget / total_power;
     for (int i = 0; i < count; i++) {
         float target_power = power[i] * scale;
@@ -142,6 +144,7 @@ static void ApplyPowerLimit(float kp, float kw, float ki, float constant,
         }
         motors[i].motor_tar.set_current = I;
     }
+    return power_budget;
 }
 
 /**
@@ -362,20 +365,7 @@ void chassis_speed_get(chassis_t *mode)
     /* FL: 左前 (-a,+b) */
     mode->chassis[FL].vx = mode->speed_reslove.vx + wz;
     mode->chassis[FL].vy = mode->speed_reslove.vy + wz;
-
-    /* 合成轮速 = sqrt(vx? + vy?) */
-    for (int i = 0; i < 4; i++) {
-        mode->speed_set[i] = sqrtf(mode->chassis[i].vx * mode->chassis[i].vx
-                                 + mode->chassis[i].vy * mode->chassis[i].vy);
-    }
-
-    /* 速度全零时清零轮速 */
-    if (mode->chassis_mode != no_move
-        && fabsf(mode->speed_in.vx) < 1e-6f
-        && fabsf(mode->speed_in.vy) < 1e-6f
-        && fabsf(mode->speed_in.wz) < 1e-6f) {
-        for (int i = 0; i < 4; i++) mode->speed_set[i] = 0.0f;
-    }
+    /* speed_set 由 chassis_speed_set 统一计算, 此处不重复 */
 }
 
 /* ======================== 舵角解算 ======================== */
@@ -545,18 +535,9 @@ void chassis_power_limit_set(void)
 
     /* ---- 3. 舵机功率限制 (上限80%) ---- */
     steer_power_budget = chassis_max_power * 0.8f;
-    ApplyPowerLimit(motor_6020_kp, motor_6020_kw, motor_6020_ki,
-                    motor_6020_constant, steer_motor, steer_power_budget, 4);
-
-    /* 重新计算舵机实际功率 */
-    float actual_steer_power = 0.0f;
-    for (int i = 0; i < 4; i++) {
-        float p = CalcMotorPower(motor_6020_kp, motor_6020_kw,
-                                 motor_6020_ki, motor_6020_constant,
-                                 steer_motor[i].motor_measure.speed_rpm,
-                                 steer_motor[i].motor_tar.set_current);
-        if (p > 0.0f) actual_steer_power += p;
-    }
+    float actual_steer_power = ApplyPowerLimit(motor_6020_kp, motor_6020_kw,
+                                    motor_6020_ki, motor_6020_constant,
+                                    steer_motor, steer_power_budget, 4);
     get_power = actual_steer_power;
 
     /* ---- 4. 底盘轮向功率限制 ---- */

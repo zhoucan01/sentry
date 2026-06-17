@@ -236,3 +236,5 @@ __weak void StartTask04(void const * argument)
 /* USER CODE BEGIN Application */
 
 /* USER CODE END Application */
+
+

@@ -1,10 +1,24 @@
 /**
  ******************************************************************************
  * @file    trig.c
- * @brief   æ‹¨ç›˜è§¦å‘æ§åˆ¶ - å•å‘/è¿å‘/è§†è§‰ + å¡å¼¹æ£€æµ‹åå¡ + å°„é¢‘è‡ªé€‚åº”
+ * @brief   ²¦ÅÌ´¥·¢¿ØÖÆ ¡ª¡ª ºËĞÄÉä»÷Ö´ĞĞÄ£¿é
  *
- * çŠ¶æ€æœº: FIRE_NO â†” FIRE_SIN â†” FIRE_CON â†” FIRE_VISION
- * åå¡é€»è¾‘: æ£€æµ‹å µè½¬ â†’ block_react â†’ å¸åŠ› â†’ reset
+ * ¸ºÔğ²¦µ¯µç»úµÄÈ«²¿¿ØÖÆÂß¼­:
+ *   1. Éä»÷Ä£Ê½Ñ¡Ôñ (Ò£¿Øµ¥·¢/Á¬·¢ / PCÊÓ¾õÁ¬·¢ / ÊÓ¾õµ¥·¢)
+ *   2. ²¦ÅÌ×´Ì¬»úµ÷¶È (FIRE_NO / FIRE_SIN / FIRE_CON / FIRE_VISION)
+ *   3. ¿¨µ¯¼ì²âÓë·´¿¨´¦Àí (¶Â×ª -> Ğ¶Á¦ -> ¸´Î»)
+ *   4. ÉäÆµ×ÔÊÊÓ¦ (¸ù¾İ²ÃÅĞÏµÍ³¹¦ÂÊÏŞÖÆ¶¯Ì¬µ÷ÕûÉäËÙ)
+ *
+ * ©¤©¤©¤ ×´Ì¬»ú ©¤©¤©¤
+ *   FIRE_NO     : ¿ÕÏĞ, µÈ´ı´¥·¢ĞÅºÅ
+ *   FIRE_SIN    : µ¥·¢Ä£Ê½, Î»ÖÃ¿ØÖÆ×ª¹Ì¶¨½Ç¶È
+ *   FIRE_CON    : Á¬·¢Ä£Ê½, ËÙ¶È¿ØÖÆ³ÖĞøĞı×ª
+ *   FIRE_VISION : ÊÓ¾õµ¥·¢, ÓÉTJ_Vision_Rx¾ö¶¨»÷·¢Ê±»ú
+ *
+ * ©¤©¤©¤ ·´¿¨Âß¼­ ©¤©¤©¤
+ *   ¼ì²â: ´óµçÁ÷ + µÍ×ªËÙ + ³ÖĞø¼ÆÊı > ãĞÖµ
+ *   ·´Ó¦: ·´Ïò»ØÍË -> µÈ´ıĞ¶Á¦ -> ¸´Î»¶Â×ª±êÖ¾
+ *   Ä¿µÄ: ·ÀÖ¹²¦ÅÌ¿¨ËÀÉÕ»Ùµç»ú
  ******************************************************************************
  */
 
@@ -20,15 +34,29 @@
 #include "gimbal.h"
 #include "motor.h"
 
-/* ---- å…¨å±€ ---- */
-com_mode_t trig_com;
+/* ================================================================
+ * È«¾Ö±äÁ¿
+ * ================================================================ */
+
+/** ²¦ÅÌÍ¨ĞÅ×´Ì¬ (com_nom = Õı³£Í¨ĞÅ, com_err = Í¨ĞÅ¶ªÊ§) */
+com_mode_t   trig_com;
+
+/** Èı¸ö²¦ÅÌPID¿ØÖÆÆ÷:
+ *   sin_ecd  : µ¥·¢½Ç¶È»· (Î»ÖÃ¿ØÖÆ)
+ *   sin_speed: µ¥·¢ËÙ¶È»· (±¸ÓÃ)
+ *   con      : Á¬·¢ËÙ¶È»·
+ */
 pid_struct_t pid_trig_sin_ecd;
 pid_struct_t pid_trig_sin_speed;
 pid_struct_t pid_trig_con;
 
+/** ²¦ÅÌÄ¿±ê±àÂëÆ÷Öµ (ÓÃÓÚµ¥·¢Î»ÖÃ¿ØÖÆ) */
 int   trig_ecd_set;
+
+/** ²¦ÅÌÄ¿±ê×ªËÙ (ÓÃÓÚÁ¬·¢ËÙ¶È¿ØÖÆ, rpm) */
 float trig_speed_set;
 
+/** È«¾Ö²¦ÅÌ×´Ì¬½á¹¹Ìå */
 trig_t trig = {
     .fire_state = FIRE_NO,
     .last_state = FIRE_NO,
@@ -38,14 +66,31 @@ trig_t trig = {
     .trig_flag.if_block_react_over = 1,
 };
 
-/* ---- å†…éƒ¨çŠ¶æ€ ---- */
+/* ================================================================
+ * ÄÚ²¿×´Ì¬
+ * ================================================================ */
+
+/** ·´¿¨Ğ¶Á¦¼ÆÊ±Æ÷, µ¥Î»: ÈÎÎñÖÜÆÚ(1ms) */
 static uint16_t react_time;
 
-/* ---- å†…éƒ¨å‡½æ•° ---- */
+/* ================================================================
+ * ÄÚ²¿º¯ÊıÉùÃ÷
+ * ================================================================ */
+
+/** ´Ó¿ØÖÆÊı¾İÖĞÍ¬²½²¨ÂÖ×´Ì¬µ½È«¾Ö±äÁ¿ Wheel_State */
 static void receive_wheel_state(void);
 
-/* ======================== åˆå§‹åŒ– + ä¸»ä»»åŠ¡ ======================== */
+/* ================================================================
+ * ³õÊ¼»¯ + Ö÷ÈÎÎñ
+ * ================================================================ */
 
+/**
+ * @brief  ³õÊ¼»¯Èı¸ö²¦ÅÌPID¿ØÖÆÆ÷
+ * @note   PID²ÎÊıËµÃ÷:
+ *         pid_trig_sin_ecd  : Kp=1.0  Î»ÖÃ»·, Êä³öÏŞ·ù4000  (µçÁ÷Öµ)
+ *         pid_trig_sin_speed: Kp=8.0  ËÙ¶È»·, »ı·ÖKi=0.0005 (±¸ÓÃ)
+ *         pid_trig_con      : Kp=25.0 Á¬·¢ËÙ¶È»·, Êä³öÏŞ·ù10000
+ */
 void trig_pid_init(void)
 {
     pid_init(&pid_trig_sin_ecd,   1.0f, 0.0f,    0.1f,  10.0f,  4000.0f);
@@ -53,20 +98,33 @@ void trig_pid_init(void)
     pid_init(&pid_trig_con,      25.0f, 0.0f,    0.0f,   0.0f, 10000.0f);
 }
 
+/**
+ * @brief  ²¦ÅÌ¿ØÖÆÖ÷ÈÎÎñ (FreeRTOSÏß³ÌÈë¿Ú)
+ * @note   ÖÜÆÚ: 1ms
+ *         Á÷³Ì: Í¨ĞÅ¼ì²â -> ×´Ì¬»ú¸üĞÂ -> µç»úÖ´ĞĞ
+ */
 void trig_run(void const *argument)
 {
     (void)argument;
-    vTaskDelay(2);
+    vTaskDelay(2);          /* ÑÓ³ÙÆô¶¯, µÈ´ıÏµÍ³³õÊ¼»¯Íê³É */
     trig_pid_init();
-    for (;;) {
-        get_trig_com();
-        trig_task_run(&trig);
+    for (;;)
+    {
+        get_trig_com();     /* ¸üĞÂÍ¨ĞÅ×´Ì¬ */
+        trig_task_run(&trig); /* Ö´ĞĞ×´Ì¬»ú */
         vTaskDelay(1);
     }
 }
 
-/* ======================== é€šä¿¡æ£€æµ‹ ======================== */
+/* ================================================================
+ * Í¨ĞÅ¼ì²â
+ * ================================================================ */
 
+/**
+ * @brief  ¼ì²â²¦ÅÌµç»úÍ¨ĞÅÊÇ·ñÕı³£
+ * @note   Í¨ĞÅÕı³£µÄÌõ¼ş: Éä»÷Ä£Ê½¿ªÆô ÇÒ ÏµÍ³Í¨ĞÅÕı³£
+ *         ·ñÔò½øÈë com_err °²È«×´Ì¬
+ */
 void get_trig_com(void)
 {
     trig_com = (control_data.shoot_mode != shoot_no
@@ -74,286 +132,540 @@ void get_trig_com(void)
              ? com_nom : com_err;
 }
 
-/* ======================== ä¸»çŠ¶æ€æœº ======================== */
+/* ================================================================
+ * Ö÷×´Ì¬»ú
+ * ================================================================ */
 
+/**
+ * @brief  ²¦ÅÌ×´Ì¬»úÖ÷µ÷¶È (Ã¿¸ö¿ØÖÆÖÜÆÚÖ´ĞĞÒ»´Î)
+ * @param  mode ²¦ÅÌ×´Ì¬Ö¸Õë
+ * @note   Ö´ĞĞË³Ğò:
+ *         1. Í¬²½²¨ÂÖ×´Ì¬
+ *         2. Ñ¡ÔñÉä»÷Ä£Ê½ (Ò£¿Ø/ÊÓ¾õ)
+ *         3. ¼ì²â¿¨µ¯×´Ì¬
+ *         4. Éä»÷¿ØÖÆµ÷¶È
+ *         5. µç»úµçÁ÷Êä³ö
+ */
 void trig_task_run(trig_t *mode)
 {
-    receive_wheel_state();
-    trig_mode_chose(mode);
-    get_trig_motor_state(mode);
-    tirg_control(mode);
-    trig_motor_run(mode);
+    receive_wheel_state();     /* ²½Öè1: »ñÈ¡Ò£¿ØÆ÷²¨ÂÖ×´Ì¬ */
+    trig_mode_chose(mode);     /* ²½Öè2: ¸ù¾İµ±Ç°Ä£Ê½Ñ¡Ôñ fire_state */
+    get_trig_motor_state(mode);/* ²½Öè3: ¼ì²âÊÇ·ñ¿¨µ¯ */
+    tirg_control(mode);        /* ²½Öè4: ¸ù¾İ×´Ì¬»úÖ´ĞĞÉä»÷¶¯×÷ */
+    trig_motor_run(mode);      /* ²½Öè5: ¼ÆËã²¢Êä³öµç»úµçÁ÷ */
 }
 
+/**
+ * @brief  ´Ó control_data Í¬²½²¨ÂÖ×´Ì¬
+ * @note   Wheel_State ÊÇÈ«¾Ö±äÁ¿, ÓÃÓÚ shoot_rc_mode() ÅĞ¶Ïµ¥·¢/Á¬·¢
+ */
 static void receive_wheel_state(void)
 {
     Wheel_State = control_data.other_data.wheel_state;
 }
 
-/* ---- æ¨¡å¼é€‰æ‹© ---- */
+/* ================================================================
+ * Ä£Ê½Ñ¡Ôñ
+ * ================================================================ */
 
+/**
+ * @brief  ¸ù¾İÍ¨ĞÅ×´Ì¬ºÍÔÆÌ¨Ä£Ê½Ñ¡ÔñÉä»÷×ÓÄ£Ê½
+ * @param  mode ²¦ÅÌ×´Ì¬Ö¸Õë
+ * @note   Í¨ĞÅ¶ªÊ§Ê±: Ç¿ÖÆ½øÈë FIRE_NO, µçÁ÷ÇåÁã (°²È«±£»¤)
+ *         Ò£¿ØÄ£Ê½Ê±: ×ß shoot_rc_mode (²¨ÂÖ¿ØÖÆµ¥·¢/Á¬·¢)
+ *         PCÄ£Ê½Ê±:   ×ß shoot_pc_mode (ÊÓ¾õ¿ØÖÆÁ¬·¢)
+ */
 void trig_mode_chose(trig_t *mode)
 {
-    if (trig_com != com_nom) {
+    /* Í¨ĞÅÒì³£: Í£Ö¹Ò»ÇĞÉä»÷¶¯×÷, ±£»¤µç»ú */
+    if (trig_com != com_nom)
+    {
         mode->fire_state = FIRE_NO;
-        trig_ecd_set = trig_motor.motor_measure.total_ecd;
-        trig_motor.motor_tar.set_current = 0;
+        trig_ecd_set = trig_motor.motor_measure.total_ecd;  /* Ëø¶¨µ±Ç°Î»ÖÃ */
+        trig_motor.motor_tar.set_current = 0;               /* ÇåÁãµçÁ÷ */
         return;
     }
 
-    if (control_data.gimbal_mode == small_gimbal_rc) {
-        shoot_rc_mode(mode);
-    } else {
-        shoot_pc_mode(mode);
+    if (control_data.gimbal_mode == small_gimbal_rc)
+    {
+        shoot_rc_mode(mode);  /* Ò£¿ØÆ÷²¨ÂÖ¿ØÖÆ */
+    }
+    else
+    {
+        shoot_pc_mode(mode);  /* PC/ÊÓ¾õ¿ØÖÆ */
     }
 }
 
-/* ---- é¥æ§å™¨å°„å‡»æ¨¡å¼ ---- */
+/* ================================================================
+ * Ò£¿ØÆ÷Éä»÷Ä£Ê½
+ * ================================================================ */
 
+/**
+ * @brief  Ò£¿ØÆ÷Éä»÷Ä£Ê½ ¡ª¡ª ¸ù¾İ²¨ÂÖ×´Ì¬ÇĞ»»µ¥·¢/Á¬·¢/¿ÕÏĞ
+ * @param  mode ²¦ÅÌ×´Ì¬Ö¸Õë
+ * @note   ²¨ÂÖ×´Ì¬Ó³Éä:
+ *         ZERO_rc       -> ¿ÕÏĞ (²»Éä»÷)
+ *         DOWN_SHORT_rc -> µ¥·¢ (×ª¹Ì¶¨µÄ TRIG_SIN_ECD ½Ç¶È)
+ *         DOWN_LONG_rc  -> Á¬·¢ (³ÖĞøĞı×ª, Ê×´ÎĞèÏÈ×ª¹»µ¥·¢½Ç¶È¹ı¶É)
+ */
 void shoot_rc_mode(trig_t *mode)
 {
-    switch (Wheel_State) {
+    switch (Wheel_State)
+    {
     case ZERO_rc:
+    {
+        /* ²¨ÂÖ¹éÖĞ: Í£Ö¹Éä»÷, Ô¤ÖÃµ¥·¢ÇëÇóÒÔ±ãÏÂ´Î¿ìËÙÏìÓ¦ */
         mode->fire_state = FIRE_NO;
         mode->trig_flag.if_sin_request = 1;
         break;
+    }
     case DOWN_SHORT_rc:
+    {
+        /* ²¨ÂÖÏÂ²¦¶Ì°´: ´¥·¢µ¥·¢ */
         mode->fire_state = FIRE_SIN;
         break;
+    }
     case DOWN_LONG_rc:
-        /* å•å‘â†’è¿å‘è¿‡æ¸¡ï¼šéœ€å…ˆè½¬å¤Ÿä¸€å‘çš„è§’åº¦ */
+    {
+        /* ²¨ÂÖÏÂ²¦³¤°´: ´¥·¢Á¬·¢
+         * ¹ı¶ÉÂß¼­: Èç¹ûÉÏÒ»¸öÊÇµ¥·¢ÇÒ»¹Î´×ª¹»Ò»·¢½Ç¶È, Ôò¼ÌĞøµ¥·¢
+         * µÈ×ª¹»ºó×Ô¶¯½øÈëÁ¬·¢, ±ÜÃâÖĞÍ¾ÇĞ»»µ¼ÖÂµ¯Íè´íÎ» */
         if (mode->last_state == FIRE_SIN
-            && trig_motor.motor_measure.total_ecd - (float)trig_ecd_set > -1400) {
-            mode->fire_state = FIRE_CON;
-        } else {
+            && trig_motor.motor_measure.total_ecd - (float)trig_ecd_set > -1400)
+        {
+            mode->fire_state = FIRE_CON;  /* µ¥·¢ÒÑÍê³É, ÇĞ»»µ½Á¬·¢ */
+        }
+        else
+        {
             mode->fire_state = (mode->last_state == FIRE_SIN)
                              ? FIRE_SIN : FIRE_CON;
         }
         break;
+    }
     default:
+    {
+        /* Î´Öª×´Ì¬: °²È«Æğ¼ûÍ£Ö¹Éä»÷ */
         mode->fire_state = FIRE_NO;
         break;
     }
-}
-
-/* ---- PCè§†è§‰å°„å‡»æ¨¡å¼ ---- */
-
-void shoot_pc_mode(trig_t *mode)
-{
-    if (gimbal.vision_on == 1) {
-        mode->fire_state = FIRE_CON;
-    } else {
-        shoot_rc_mode(mode);  /* æ— è§†è§‰æ—¶é€€åŒ–åˆ°é¥æ§æ¨¡å¼ */
     }
 }
 
-/* ---- å°„å‡»æ§åˆ¶è°ƒåº¦ ---- */
+/* ================================================================
+ * PCÊÓ¾õÉä»÷Ä£Ê½
+ * ================================================================ */
 
+/**
+ * @brief  PC/ÊÓ¾õÉä»÷Ä£Ê½ ¡ª¡ª ÊÓ¾õËø¶¨Ê±Á¬·¢, ·ñÔòÍË»¯ÎªÒ£¿ØÄ£Ê½
+ * @param  mode ²¦ÅÌ×´Ì¬Ö¸Õë
+ * @note   ÊÓ¾õÄ£Ê½ (vision_on == 1) : ³ÖĞøÁ¬·¢
+ *         ÎŞÊÓ¾õ (vision_on == 0) : ÍË»¯ÎªÒ£¿ØÆ÷²¨ÂÖ¿ØÖÆ
+ */
+void shoot_pc_mode(trig_t *mode)
+{
+    if (gimbal.vision_on == 1)
+    {
+        mode->fire_state = FIRE_CON;  /* ÊÓ¾õËø¶¨: Á¬·¢Êä³ö */
+    }
+    else
+    {
+        shoot_rc_mode(mode);  /* ÎŞÊÓ¾õÊ±ÍË»¯µ½Ò£¿ØÄ£Ê½ */
+    }
+}
+
+/* ================================================================
+ * Éä»÷¿ØÖÆµ÷¶È
+ * ================================================================ */
+
+/**
+ * @brief  Éä»÷¿ØÖÆºËĞÄµ÷¶È ¡ª¡ª ¸ù¾İµ±Ç° fire_state Ö´ĞĞ¶ÔÓ¦¶¯×÷
+ * @param  mode ²¦ÅÌ×´Ì¬Ö¸Õë
+ * @note   ÓÅÏÈ¼¶:
+ *         1. Éä»÷¹Ø±Õ: ±£³ÖÎ»ÖÃ²»¶¯
+ *         2. ¿¨µ¯´¦Àí: ÓÅÏÈ·´¿¨, ×è¶ÏÕı³£Éä»÷
+ *         3. Õı³£Éä»÷: ¸ù¾İ fire_state ×ßµ¥·¢/Á¬·¢/ÊÓ¾õ·ÖÖ§
+ */
 void tirg_control(trig_t *mode)
 {
-    if (control_data.shoot_mode != shoot_on) {
+    /* Éä»÷¿ª¹Ø¹Ø±Õ: ±£³Ö±àÂëÆ÷µ±Ç°Î»ÖÃ²»¶¯ */
+    if (control_data.shoot_mode != shoot_on)
+    {
         trig_ecd_set = trig_motor.motor_measure.total_ecd;
         return;
     }
 
-    trig_chose_freq(mode);
+    trig_chose_freq(mode);  /* ÏÈ¸ù¾İ¹¦ÂÊÏŞÖÆ¸üĞÂÉäÆµ */
 
-    /* å¡å¼¹å¤„ç†ä¼˜å…ˆ */
-    if (mode->trig_flag.if_block_react_over == 0) {
+    /* ¿¨µ¯´¦Àí×î¸ßÓÅÏÈ¼¶: ×è¶ÏÕı³£Éä»÷Á÷³Ì */
+    if (mode->trig_flag.if_block_react_over == 0)
+    {
         block_react(mode);
         return;
     }
 
-    switch (mode->fire_state) {
+    /* Õı³£Éä»÷×´Ì¬·Ö·¢ */
+    switch (mode->fire_state)
+    {
     case FIRE_SIN:
-        if (mode->last_state == FIRE_CON) {
+    {
+        /* µ¥·¢Ä£Ê½: ´ÓÁ¬·¢ÇĞ¹ıÀ´Ê±ÖØÖÃÄ¿±êÎ»ÖÃ */
+        if (mode->last_state == FIRE_CON)
+        {
             trig_ecd_set = trig_motor.motor_measure.total_ecd;
         }
         trig_sin(mode);
         break;
+    }
     case FIRE_CON:
+    {
+        /* Á¬·¢Ä£Ê½: Ã¿´Î½øÈëÊ±ÓÃµ±Ç°Î»ÖÃ×÷Îª»ù×¼ */
         trig_ecd_set = trig_motor.motor_measure.total_ecd;
         trig_con(mode);
         break;
+    }
     case FIRE_VISION:
+    {
+        /* ÊÓ¾õµ¥·¢: ÓÉ TJ_Vision_Rx ¿ØÖÆ»÷·¢Ê±»ú */
         trig_vision(mode);
         break;
+    }
     case FIRE_NO:
     default:
-        if (judge_if_sin_over() == YES) {
+    {
+        /* ¿ÕÏĞ: ´ıµ¥·¢Íê³É±êÖ¾ÖÃÎ»ºó, ×¼±¸ºÃÏÂÒ»´Îµ¥·¢ÇëÇó */
+        if (judge_if_sin_over() == YES)
+        {
             mode->trig_flag.if_sin_request = 1;
             trig_ecd_set = trig_motor.motor_measure.total_ecd;
         }
         break;
     }
+    }
 
+    /* ¼ÇÂ¼±¾´Î×´Ì¬, ¹©ÏÂÒ»ÖÜÆÚÅĞ¶Ï×´Ì¬ÇĞ»» */
     mode->last_state = mode->fire_state;
 }
 
-/* ---- å•å‘ ---- */
+/* ================================================================
+ * µ¥·¢
+ * ================================================================ */
 
+/**
+ * @brief  µ¥·¢¿ØÖÆ ¡ª¡ª Ã¿´Îµ÷ÓÃÔö¼Ó¹Ì¶¨±àÂëÆ÷Æ«ÒÆ
+ * @param  mode ²¦ÅÌ×´Ì¬Ö¸Õë
+ * @note   - ¹¦ÂÊ²»×ãÊ±: ±£³Öµ±Ç°Î»ÖÃµÈ´ı (±ÜÃâÇ·¹¦ÂÊµ¼ÖÂ¶Â×ª)
+ *         - ¹¦ÂÊ³ä×ãÊ±: trig_ecd_set += TRIG_SIN_ECD (×ª¶¯Ò»·¢µÄ½Ç¶È)
+ *         - TRIG_SIN_ECD = 32700, ¼´²¦ÅÌ×ª¶¯Ô¼Ò»·¢µÄ±àÂëÆ÷ÔöÁ¿
+ */
 void trig_sin(trig_t *mode)
 {
-    if (mode->trig_flag.if_sin_request != 1) return;
-    mode->trig_flag.if_sin_request = 0;
+    if (mode->trig_flag.if_sin_request != 1)
+    {
+        return;  /* Î´ÇëÇóµ¥·¢, ²»Ö´ĞĞ */
+    }
+    mode->trig_flag.if_sin_request = 0;  /* Ïû·ÑÇëÇó±êÖ¾ */
 
-    if (control_data.shoot_power >= TRIG_MAX_POWER - TRIG_NORMOL_POWER_LIMIT) {
-        trig_ecd_set = trig_motor.motor_measure.total_ecd;  /* åŠŸç‡ä¸è¶³ï¼Œç­‰å¾… */
-    } else {
-        trig_ecd_set += TRIG_SIN_ECD;
+    /* ¹¦ÂÊ¼ì²é: µ±Ç°¹¦ÂÊ >= ×î´ó¹¦ÂÊ - ³£¹æ¹¦ÂÊÏŞÖÆ Ê±ËµÃ÷¹¦ÂÊ²»×ã */
+    if (control_data.shoot_power >= TRIG_MAX_POWER - TRIG_NORMOL_POWER_LIMIT)
+    {
+        trig_ecd_set = trig_motor.motor_measure.total_ecd;  /* ¹¦ÂÊ²»×ã, µÈ´ı */
+    }
+    else
+    {
+        trig_ecd_set += TRIG_SIN_ECD;  /* Ôö¼ÓÒ»·¢µ¯µÄ±àÂëÆ÷Æ«ÒÆ */
     }
 }
 
-/* ---- è¿å‘ ---- */
+/* ================================================================
+ * Á¬·¢
+ * ================================================================ */
 
+/**
+ * @brief  Á¬·¢¿ØÖÆ ¡ª¡ª ÉèÖÃ²¦ÅÌÄ¿±ê×ªËÙ
+ * @param  mode ²¦ÅÌ×´Ì¬Ö¸Õë
+ * @note   - Ò£¿ØÄ£Ê½: Ê¹ÓÃ¹Ì¶¨ÉäÆµ CON_FREQ_20
+ *         - ÊÓ¾õÄ£Ê½: ¸ù¾İÄ¿±êÀàĞÍ¶¯Ì¬Ñ¡ÔñÉäÆµ
+ *           * Ç°ÉÚÕ¾ (ARMOR_OUTPOST): CON_FREQ_12 (12·¢/Ãë)
+ *           * ÆäËû×°¼×°å:            CON_FREQ_20 (20·¢/Ãë)
+ *         - ×ªËÙ»»Ëã: trig_speed_set = TRIG_1FPS_SPEED * freq
+ *           TRIG_1FPS_SPEED = 2160/8 = 270 rpm/·¢Ã¿Ãë
+ */
 void trig_con(trig_t *mode)
 {
-    if (gimbal.vision_on == 0) {
+    if (gimbal.vision_on == 0)
+    {
+        /* Ò£¿ØÁ¬·¢: ¹Ì¶¨ÉäËÙ */
         trig_speed_set = TRIG_1FPS_SPEED * (float)mode->trig_freq;
-    } else {
-        /* è§†è§‰æ¨¡å¼ï¼šæ ¹æ®ç›®æ ‡ç±»å‹é€‰æ‹©å°„é¢‘ */
-        if (Rx_Vision.fire && Rx_Vision.Fire_Mode > 0) {
+    }
+    else
+    {
+        /* ÊÓ¾õÁ¬·¢: ¸ù¾İÄ¿±ê×°¼×°åÀàĞÍ¶¯Ì¬Ñ¡ÔñÉäÆµ */
+        if (Rx_Vision.fire && Rx_Vision.Fire_Mode > 0)
+        {
             mode->trig_freq = (Rx_Vision.armor_id == ARMOR_OUTPOST)
                             ? CON_FREQ_12 : CON_FREQ_20;
-        } else {
-            mode->trig_freq = 0;
+        }
+        else
+        {
+            mode->trig_freq = 0;  /* ÊÓ¾õÎ´´¥·¢, ²»·¢Éä */
         }
         trig_speed_set = TRIG_1FPS_SPEED * (float)mode->trig_freq;
     }
 }
 
-/* ---- è§†è§‰å•å‘ ---- */
+/* ================================================================
+ * ÊÓ¾õµ¥·¢
+ * ================================================================ */
 
+/**
+ * @brief  ÊÓ¾õµ¥·¢Ä£Ê½ ¡ª¡ª ÓÉÉÏÎ»»ú TJ_Vision_Rx ¿ØÖÆ»÷·¢
+ * @param  mode ²¦ÅÌ×´Ì¬Ö¸Õë
+ * @note   - control_fire Ä£Ê½ÏÂ: Ã¿´ÎÉä»÷×ª4·¢µ¯µÄ½Ç¶È
+ *         - ·Ç control_fire Ä£Ê½: ±£³ÖÎ»ÖÃ²»¶¯
+ */
 void trig_vision(trig_t *mode)
 {
-    if (TJ_Vision_Rx.Vision_gimbal_mode == control_fire) {
-        if (judge_if_sin_over() == YES) {
-            trig_ecd_set += (TRIG_SIN_ECD * 4);
+    if (TJ_Vision_Rx.Vision_gimbal_mode == control_fire)
+    {
+        if (judge_if_sin_over() == YES)
+        {
+            trig_ecd_set += (TRIG_SIN_ECD * 4);  /* Ò»´Î×ª4·¢ */
         }
-    } else {
-        trig_ecd_set = trig_motor.motor_measure.total_ecd;
+    }
+    else
+    {
+        trig_ecd_set = trig_motor.motor_measure.total_ecd;  /* ´ıÃü, ²»¶¯ */
     }
 }
 
-/* ---- å°„é¢‘è‡ªé€‚åº” ---- */
+/* ================================================================
+ * ÉäÆµ×ÔÊÊÓ¦
+ * ================================================================ */
 
+/**
+ * @brief  ÉäÆµ×ÔÊÊÓ¦ ¡ª¡ª ¸ù¾İ²ÃÅĞÏµÍ³¹¦ÂÊÏŞÖÆ¶¯Ì¬µ÷ÕûÉäËÙ
+ * @param  mode ²¦ÅÌ×´Ì¬Ö¸Õë
+ * @note   ²ßÂÔ:
+ *         - Ò£¿ØÄ£Ê½: ¹Ì¶¨ CON_FREQ_20 (²»ÏŞÖÆ¹¦ÂÊ)
+ *         - PCÄ£Ê½:
+ *           * Ç°ÉÚÕ¾: ¹¦ÂÊÏŞÖÆ 250W (TRIG_OUTPOST_POWER_LIMIT)
+ *           * ³£¹æ:   ¹¦ÂÊÏŞÖÆ  80W (TRIG_NORMOL_POWER_LIMIT)
+ *           * ¹¦ÂÊ²»×ãÊ±: trig_freq = 0 (ÔİÍ£Éä»÷, µÈ´ı¹¦ÂÊ»Ö¸´)
+ */
 void trig_chose_freq(trig_t *mode)
 {
-    if (control_data.gimbal_mode != small_gimbal_pc) {
+    /* Ò£¿ØÄ£Ê½²»ÏŞÖÆÉäÆµ */
+    if (control_data.gimbal_mode != small_gimbal_pc)
+    {
         mode->trig_freq = CON_FREQ_20;
         return;
     }
 
+    /* PCÄ£Ê½: ¸ù¾İÄ¿±êÀàĞÍÑ¡Ôñ¹¦ÂÊÉÏÏŞ */
     float limit = (Rx_Vision.armor_id == ARMOR_OUTPOST)
                 ? TRIG_OUTPOST_POWER_LIMIT : TRIG_NORMOL_POWER_LIMIT;
 
+    /* µ±Ç°¹¦ÂÊ >= ×î´ó¹¦ÂÊ - ÏŞÖÆÖµ Ê±, ÔİÍ£Éä»÷µÈ´ı»Ö¸´ */
     mode->trig_freq = (control_data.shoot_power >= TRIG_MAX_POWER - limit)
                     ? 0 : CON_FREQ_20;
 }
 
-/* ======================== å¡å¼¹æ£€æµ‹ ======================== */
+/* ================================================================
+ * ¿¨µ¯¼ì²â
+ * ================================================================ */
 
+/**
+ * @brief  ¸üĞÂ²¦ÅÌµç»ú×´Ì¬ (¿¨µ¯¼ì²âÈë¿Ú)
+ * @param  mode ²¦ÅÌ×´Ì¬Ö¸Õë (µ±Ç°Î´Ê¹ÓÃ, ±£Áô½Ó¿Ú)
+ */
 void get_trig_motor_state(trig_t *mode)
 {
     (void)mode;
-    judge_if_block();
+    judge_if_block();  /* Ã¿´Îµ÷ÓÃ¶¼¼ì²éÊÇ·ñ¿¨µ¯ */
 }
 
+/**
+ * @brief  ¿¨µ¯ÅĞ¶¨Âß¼­
+ * @note   ÅĞ¶¨Ìõ¼ş (Èı¸öÍ¬Ê±Âú×ã):
+ *         1. ·´À¡µçÁ÷ > BLOCK_CURRENT_THRESH (7000)  ¡ª¡ª µç»ú³öÁ¦¹ı´ó
+ *         2. Êµ¼Ê×ªËÙ   < BLOCK_SPEED_THRESH   (50)    ¡ª¡ª µç»ú×ª²»¶¯
+ *         3. ×ªËÙ >= 0                                 ¡ª¡ª ·Ç·´×ª×´Ì¬
+ *         4. Î´±ê¼Ç¿¨µ¯ (trig.if_block == 0)
+ *
+ *         ¼ÆÊı³¬¹ı BLOCK_CNT_THRESH (70ms) ºó´¥·¢¿¨µ¯,
+ *         ¸ù¾İµ±Ç°Éä»÷Ä£Ê½Çø·Ö SIN_BLOCK(µ¥·¢¿¨µ¯) / CON_BLOCK(Á¬·¢¿¨µ¯)
+ */
 void judge_if_block(void)
 {
-    /* å µè½¬æ¡ä»¶ï¼šå¤§ç”µæµ + ä½è½¬é€Ÿ + æœªæ ‡è®°å¡å¼¹ */
+    /* ¶Â×ªÌõ¼ş¼ì²â */
     if (trig_motor.motor_measure.feedback_current > BLOCK_CURRENT_THRESH
         && trig_motor.motor_measure.speed_rpm < BLOCK_SPEED_THRESH
         && trig_motor.motor_measure.speed_rpm >= 0
-        && trig.if_block == 0) {
-        trig.block_state.cnt++;
-    } else {
-        trig.block_state.cnt = 0;
+        && trig.if_block == 0)
+    {
+        trig.block_state.cnt++;  /* Âú×ã¶Â×ªÌõ¼ş, ÀÛ¼Ó¼ÆÊı */
+    }
+    else
+    {
+        trig.block_state.cnt = 0;  /* ²»Âú×ã, ÇåÁã¼ÆÊı */
     }
 
-    if (trig.block_state.cnt > BLOCK_CNT_THRESH) {
+    /* ³ÖĞø¶Â×ª³¬¹ıãĞÖµ: ±ê¼Ç¿¨µ¯ */
+    if (trig.block_state.cnt > BLOCK_CNT_THRESH)
+    {
         trig.if_block = 1;
         trig.block_state.block_type = (trig.fire_state == FIRE_CON)
                                     ? CON_BLOCK : SIN_BLOCK;
-        trig.trig_flag.if_block_react_over = 0;
+        trig.trig_flag.if_block_react_over = 0;  /* ´¥·¢·´¿¨Á÷³Ì */
     }
 
-    if (trig.if_block == 0 && trig.trig_flag.if_block_react == 1) {
+    /* Õı³£×´Ì¬ÏÂÇå³ı·´¿¨±êÖ¾ */
+    if (trig.if_block == 0 && trig.trig_flag.if_block_react == 1)
+    {
         trig.trig_flag.if_block_react = 0;
     }
 }
 
-/* ---- åå¡å¤„ç† ---- */
+/* ================================================================
+ * ·´¿¨´¦Àí
+ * ================================================================ */
 
+/**
+ * @brief  ·´¿¨×Üµ÷¶È ¡ª¡ª ¸ù¾İ¿¨µ¯ÀàĞÍ·Ö·¢´¦Àí
+ * @param  mode ²¦ÅÌ×´Ì¬Ö¸Õë
+ * @note   µ¥·¢¿¨µ¯: sin_block_react (·´×ª + ÑÓÊ±µÈ´ı)
+ *         Á¬·¢¿¨µ¯: con_block_react (·´×ª + µÈ´ıĞ¶Á¦)
+ */
 void block_react(trig_t *mode)
 {
-    if (mode->block_state.block_type == SIN_BLOCK)  sin_block_react(mode);
-    if (mode->block_state.block_type == CON_BLOCK)  con_block_react(mode);
+    if (mode->block_state.block_type == SIN_BLOCK)
+    {
+        sin_block_react(mode);
+    }
+    if (mode->block_state.block_type == CON_BLOCK)
+    {
+        con_block_react(mode);
+    }
 }
 
+/**
+ * @brief  µ¥·¢¿¨µ¯·´¿¨ ¡ª¡ª ·´×ªµç»ú + ÑÓÊ±Ğ¶Á¦
+ * @param  mode ²¦ÅÌ×´Ì¬Ö¸Õë
+ * @note   ²½Öè:
+ *         1. ¼ÇÂ¼µ±Ç°Î»ÖÃ, ÉèÖÃÄ¿±êÎªµ±Ç°Î»ÖÃ (µç»úÍ£Ö¹³öÁ¦)
+ *         2. µÈ´ıµç»úÍ£Ö¹ (Ä¿±êÎ»ÖÃÓëÊµ¼ÊÎ»ÖÃ²î < 1000)
+ *         3. ÑÓÊ± BLOCK_REACT_TIME (50ms) ÈÃµ¯Íè×ÔÈ»ÍÑÂä
+ *         4. ¸´Î»¿¨µ¯±êÖ¾, »Ö¸´Õı³£Éä»÷
+ */
 void sin_block_react(trig_t *mode)
 {
-    if (mode->trig_flag.if_block_react == 0) {
+    /* Ê×´Î½øÈë·´¿¨: ¼ÇÂ¼µ±Ç°Î»ÖÃ, Í£Ö¹ÔË¶¯ */
+    if (mode->trig_flag.if_block_react == 0)
+    {
         trig_ecd_set = trig_motor.motor_measure.total_ecd;
         mode->trig_flag.if_block_react = 1;
     }
 
+    /* µÈ´ıµç»úÍ£Ö¹ (Î»ÖÃÎó²î < 1000 ±àÂëÆ÷µ¥Î») */
     if (mode->trig_flag.if_block_react == 1
-        && abs(trig_ecd_set - trig_motor.motor_measure.total_ecd) < 1000) {
-        react_time++;
+        && abs(trig_ecd_set - trig_motor.motor_measure.total_ecd) < 1000)
+    {
+        react_time++;  /* µç»úÒÑÍ£Ö¹, ¿ªÊ¼¼ÆÊ±Ğ¶Á¦ */
     }
-    if (react_time > BLOCK_REACT_TIME) {
+
+    /* Ğ¶Á¦Ê±¼äµ½: ¸´Î»¿¨µ¯×´Ì¬ */
+    if (react_time > BLOCK_REACT_TIME)
+    {
         reset_block_flag(mode);
         react_time = 0;
     }
 }
 
+/**
+ * @brief  Á¬·¢¿¨µ¯·´¿¨ ¡ª¡ª ·´×ªµç»úÁ¢¼´Ğ¶Á¦
+ * @param  mode ²¦ÅÌ×´Ì¬Ö¸Õë
+ * @note   Á¬·¢Ä£Ê½ÏÂ¿¨µ¯ºóÁ¢¼´Í£Ö¹Ä¿±êÔË¶¯,
+ *         µÈ´ıµç»úÍ£ÏÂÀ´ºóÖ±½Ó¸´Î» (²»ĞèÒª¶îÍâÑÓÊ±)
+ */
 void con_block_react(trig_t *mode)
 {
-    if (mode->trig_flag.if_block_react == 0) {
+    /* Ê×´Î½øÈë·´¿¨: ¼ÇÂ¼µ±Ç°Î»ÖÃ, Í£Ö¹ÔË¶¯ */
+    if (mode->trig_flag.if_block_react == 0)
+    {
         trig_ecd_set = trig_motor.motor_measure.total_ecd;
         mode->trig_flag.if_block_react = 1;
     }
 
+    /* µç»úÍ£Ö¹ºóÁ¢¿Ì¸´Î» */
     if (mode->trig_flag.if_block_react == 1
-        && abs(trig_ecd_set - trig_motor.motor_measure.total_ecd) < 1000) {
+        && abs(trig_ecd_set - trig_motor.motor_measure.total_ecd) < 1000)
+    {
         reset_block_flag(mode);
     }
 }
 
+/**
+ * @brief  ¸´Î»¿¨µ¯×´Ì¬ ¡ª¡ª Çå³ıËùÓĞ¿¨µ¯±êÖ¾
+ * @param  mode ²¦ÅÌ×´Ì¬Ö¸Õë
+ * @note   µ÷ÓÃºó»Ö¸´Õı³£Éä»÷Á÷³Ì
+ */
 void reset_block_flag(trig_t *mode)
 {
     mode->block_state.block_type = NO_BLOCK;
-    mode->trig_flag.if_block_react_over = 1;
-    mode->if_block = 0;
+    mode->trig_flag.if_block_react_over = 1;  /* ·´¿¨Á÷³Ì½áÊø */
+    mode->if_block = 0;                       /* Çå³ı¿¨µ¯±ê¼Ç */
 }
 
-/* ======================== ç”µæœºæ‰§è¡Œ ======================== */
+/* ================================================================
+ * µç»úÖ´ĞĞ
+ * ================================================================ */
 
+/**
+ * @brief  ²¦ÅÌµç»úµçÁ÷Êä³ö ¡ª¡ª ¸ù¾İµ±Ç°×´Ì¬Ñ¡Ôñ¿ØÖÆÄ£Ê½
+ * @param  mode ²¦ÅÌ×´Ì¬Ö¸Õë
+ * @note   ¿ØÖÆÄ£Ê½Ó³Éä:
+ *         - FIRE_SIN / FIRE_VISION : Î»ÖÃ»· (pid_trig_sin_ecd)
+ *         - FIRE_CON               : ËÙ¶È»· (pid_trig_con)
+ *         - FIRE_NO / Í¨ĞÅÒì³£      : Î»ÖÃ±£³Ö (pid_trig_sin_ecd, Ä¿±ê=µ±Ç°Î»ÖÃ)
+ */
 void trig_motor_run(trig_t *mode)
 {
-    if (trig_com != com_nom) {
+    /* Í¨ĞÅ¶ªÊ§: µç»ú¶Ïµç±£»¤ */
+    if (trig_com != com_nom)
+    {
         trig_motor.motor_tar.set_current = 0;
         return;
     }
 
-    if (mode->fire_state == FIRE_SIN || mode->fire_state == FIRE_VISION) {
-        /* ä½ç½®æ§åˆ¶ï¼šç¼–ç å™¨ç›®æ ‡ */
+    if (mode->fire_state == FIRE_SIN || mode->fire_state == FIRE_VISION)
+    {
+        /* µ¥·¢/ÊÓ¾õµ¥·¢: Î»ÖÃ¿ØÖÆ, Ä¿±ê = trig_ecd_set */
         trig_motor.motor_tar.set_current = pid_calc(&pid_trig_sin_ecd,
             trig_motor.motor_measure.total_ecd, (float)trig_ecd_set);
-    } else if (mode->fire_state == FIRE_CON) {
-        /* é€Ÿåº¦æ§åˆ¶ï¼šè½¬é€Ÿç›®æ ‡ */
+    }
+    else if (mode->fire_state == FIRE_CON)
+    {
+        /* Á¬·¢: ËÙ¶È¿ØÖÆ, Ä¿±ê = trig_speed_set */
         trig_motor.motor_tar.set_current = pid_calc(&pid_trig_con,
             trig_motor.motor_measure.speed_rpm, trig_speed_set);
-    } else {
-        /* FIRE_NOï¼šä¿æŒä½ç½® */
+    }
+    else
+    {
+        /* ¿ÕÏĞ: Î»ÖÃ±£³Ö, Ä¿±ê = µ±Ç°Î»ÖÃ (Ëø¶¨²»¶¯) */
         trig_motor.motor_tar.set_current = pid_calc(&pid_trig_sin_ecd,
             trig_motor.motor_measure.total_ecd, (float)trig_ecd_set);
     }
 }
 
-/* ======================== è¾…åŠ© ======================== */
+/* ================================================================
+ * ¸¨Öú
+ * ================================================================ */
 
+/**
+ * @brief  ÅĞ¶Ïµ¥·¢ÊÇ·ñÍê³É (µ±Ç°Î»ÖÃÊÇ·ñµ½´ïÄ¿±êÎ»ÖÃ)
+ * @return true=ÒÑÍê³É, false=ÔË¶¯ÖĞ
+ * @note   ÅĞ¶¨Ìõ¼ş: |Ä¿±ê±àÂëÆ÷ - µ±Ç°±àÂëÆ÷| < 500
+ */
 bool judge_if_sin_over(void)
 {
     return (abs(trig_ecd_set - trig_motor.motor_measure.total_ecd) < 500);

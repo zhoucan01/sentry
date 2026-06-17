@@ -2,7 +2,7 @@
   ************************************* Copyright ******************************   
     * FileName   : Sentry_cmd.h   
   * Version    : v1.0		
-  * Author     : ç‹å­ä½©			
+  * Author     : Íõ×ÓÅå			
   * Date       : 2024-05-12         
   * Description:    
   * Function List:  
@@ -40,7 +40,7 @@ typedef __packed struct
 	UI_Packhead_t UI_Packhead;
 	// cmd_id
 	map_data_t data;
-	// å†…å®¹æ•°æ®æ®µ
+	// ÄÚÈİÊı¾İ¶Î
 	uint16_t frame_tail;
 } Path_Data_t;
 
@@ -49,23 +49,23 @@ typedef __packed struct
 #define Map_Data_byte    114 //9+105
 typedef struct
 {
-    /* æ§åˆ¶æ¨¡å¼ */
-//    uint8_t point_mode;      // ç‚¹ä½æ¨¡å¼
-//    toward_mode_e toward;    // æœå‘æ¨¡å¼
-//    move_mode_e move;        // ç§»åŠ¨æ¨¡å¼
-//    cruise_mode_e cruise;    // å·¡èˆªæ¨¡å¼
+    /* ¿ØÖÆÄ£Ê½ */
+//    uint8_t point_mode;      // µãÎ»Ä£Ê½
+//    toward_mode_e toward;    // ³¯ÏòÄ£Ê½
+//    move_mode_e move;        // ÒÆ¶¯Ä£Ê½
+//    cruise_mode_e cruise;    // Ñ²º½Ä£Ê½
 
-//    /* ç›®æ ‡é€‰æ‹© */
-//    ext_target_switch_t IF_Strike;        // å‡»æ‰“ç›®æ ‡
-//    ext_target_switch_t Follow_target;    // è·Ÿéšç›®æ ‡
+//    /* Ä¿±êÑ¡Ôñ */
+//    ext_target_switch_t IF_Strike;        // »÷´òÄ¿±ê
+//    ext_target_switch_t Follow_target;    // ¸úËæÄ¿±ê
 
-//    /* äº‘å°å·¡èˆª */
-//    float yaw_mid_obj;       // yawè½´å¾ªç¯ä¸­å€¼
+//    /* ÔÆÌ¨Ñ²º½ */
+//    float yaw_mid_obj;       // yawÖáÑ­»·ÖĞÖµ
 
-    /* æœºå™¨äººç›®æ ‡ä½ç½® */
-    robot_pos_t robot_pos_set;            // æœºå™¨äººç›®æ ‡ä½ç½®
-    /* æœºå™¨äººè·¯å¾„ */
-    Path_Data_t path_data;   // æœºå™¨äººè·¯å¾„ä¿¡æ¯
+    /* »úÆ÷ÈËÄ¿±êÎ»ÖÃ */
+    robot_pos_t robot_pos_set;            // »úÆ÷ÈËÄ¿±êÎ»ÖÃ
+    /* »úÆ÷ÈËÂ·¾¶ */
+    Path_Data_t path_data;   // »úÆ÷ÈËÂ·¾¶ĞÅÏ¢
 	
 }Map_data_t;
 

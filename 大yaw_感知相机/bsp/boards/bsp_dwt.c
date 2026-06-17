@@ -21,13 +21,13 @@ static void DWT_CNT_Update(void);
 
 void DWT_Init(uint32_t CPU_Freq_mHz)
 {
-    /* ä½¿èƒ½DWTå¤–è®¾ */
+    /* Ê¹ÄÜDWTÍâÉè */
     CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
 
-    /* DWT CYCCNTå¯„å­˜å™¨è®¡æ•°æ¸…0 */
+    /* DWT CYCCNT¼Ä´æÆ÷¼ÆÊýÇå0 */
     DWT->CYCCNT = (uint32_t)0u;
 
-    /* ä½¿èƒ½Cortex-M DWT CYCCNTå¯„å­˜å™¨ */
+    /* Ê¹ÄÜCortex-M DWT CYCCNT¼Ä´æÆ÷ */
     DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
 
     CPU_FREQ_Hz = CPU_Freq_mHz * 1000000;

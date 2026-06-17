@@ -1,14 +1,26 @@
+
 /**
- ******************************************************************************
- * @file    decision.c
- * @brief   哨兵电控决策 - 6种自主模式状态机 + 云台手标点 + 裁判系统交互
- * @author  周灿
- * @date    2025-08-01
- *
- * 决策模式: extreme | conservative | patrol | flying | protect | air_control
- * 采用状态机架构, 每个模式独立维护点位转移逻辑
- ******************************************************************************
- */
+  ************************************* Copyright ****************************** 
+  * FileName   : decision.c   
+  * Version    : v2.1	
+  * Author     : 周灿
+  * Number     : 15271187610 	
+  * Date       : 2025-8-1   
+  * Description:    哨兵电控决策，后续改到上位机上，调试较为困难且复杂，上限太低了
+  * Function List:  
+  	1. ....
+  	   <version>: 		
+  <modify staff>:
+  		  <data>:
+   <description>:  
+  	2. ...
+  ******************************************************************************
+ *根据建图的起始点来改代码  下列是所涉及到的协议，但是目前坐标系很不统一，比较麻烦
+ 1云台手标点坐标需要修改map_control_fill
+ 2云台手小地图哨兵路径提示需要改Path_display
+ 3导航点推送至导航端Navigation_Tx_Send(&navigation_tx);
+ 4所有涉及到目前哨兵位置的也就是导航发送过来的当前位置都需要看,因为当前导航发过来的坐标是里程计坐标，也就是从程序运行起来相对于你程序起始点的坐标而不是相对于零点的坐标，后续有可能更换，目前不确定
+*******************************************************************/
 
 #include "decision.h"
 #include "bsp_transmit.h"
@@ -22,248 +34,426 @@
 #include "CAN_receive.h"
 #include "navigation.h"
 #include "struct_typedef.h"
+#include "stdbool.h"
 #include "Nautilus_UI.h"
 #include "string.h"
 #include "math.h"
+#include "navigation.h"
+#include "Nautilus_UI.h"
 #include "ins_task.h"
 #include "Sentry_cmd.h"
+/*导航点决策*/
 
-/* ---- 全局状态 ---- */
-decision_t   decision;
+decision_t decision;
 Sentry_cmd_t Sentry_cmd_send;
 
-static int      hurt_time;
-static uint16_t Last_HP;
-static uint16_t Last_projectile_allowance_17mm;
+float Red_Navi_position[DECISION_POSITION_NUM][2];
 
+
+
+//每场场前确定打不打工程
+//#define if_shoot_Engineer
+//建图后确定到底是哪方建图的
+#define RED_START_NAVIGATION // 确定红方开始建图
+//提前写好蓝方建图和红方建图的代码在家里测试好了之后，去了比赛就可以快速修改
+//总共14个点位
+
+//float Red_Navi_position[DECISION_POSITION_NUM][2]  = { {  3.79   , 7.99 },//9.96 3.69
+//                                                       {  2.42  , 2.35 },
+//                                                       {  10.35 , 14.27 },//10.75 
+//                                                       {  8.5 , 7.5 },
+//                                                       {  8.5  , 7.5 },
+//                                                       {  6.65 , 9.1 },
+//                                                       {  6.28 , 6.84 },
+//                                                       {  15.75,9.39},
+//                                                       {  21.18, 5.67},
+//                                                       {  23.80, 7.59},
+//                                                       {  11.43, 4.36},
+//                                                       {  21.18, 5.67},
+//                                                       {  13.48, 8.98},
+//                                                       {  8.9 , 7.5}};
+float Red_Navi_position[DECISION_POSITION_NUM][2]  = { {  0   , 0 },//9.96 3.69
+                                                       {  2.42  , -2.35 },//训练
+                                                       {  10.35 , 14.27 },//10.75 
+                                                       {  8.5 , 7.5 },
+                                                       {  8.5  , 7.5 },
+                                                       {  6.65 , 9.1 },
+                                                       {  6.28 , 6.84 },
+                                                       {  15.75,9.39},
+                                                       {  21.18, 5.67},
+                                                       {  23.80, 7.59},
+                                                       {  11.43, 4.36},
+                                                       {  21.18, 5.67},
+                                                       {  4,-3},//训练
+                                                       {  8.9 , 7.5}};
+
+
+
+int iiipp;
+int huug;
+ int hurt_time=0;
+/* ====== 自主决策主任务（FreeRTOS入口） ====== */
 void Auto_run(void const * argument)
 {
-    (void)argument;
-    Decision_Init(&decision);
-    hurt_time = 420;
+ Decision_Init(&decision);
+ hurt_time=420;
 
-    decision.If_point_change = 0;
-    memset(&decision, 0, sizeof(decision_t));
-    decision.Cmd_condition.if_update = 1;
-    memset(&Sentry_cmd_send, 0, sizeof(Sentry_cmd_t));
+  
+ decision.If_point_change=0;
+ memset(&decision,0,sizeof(decision_t));
+ decision.Cmd_condition.if_update=1;
+ memset(&Sentry_cmd_send,0,sizeof(Sentry_cmd_t));
 
-    for (;;) {
-        Decison_State_Ctl(&decision);
-        sentry_shoot_decision(&decision);
-        get_referr_data();
-        Sentry_cmd_decision(&decision);
-        decision_point_fill();
-        Navigation_Tx_Send(&navigation_tx);
-        vTaskDelay(1);
-    }
+//decision.decision_mode=guard;
+ huug++;
+// decision.Judge_condition.IF_Arrived=
+
+ #ifdef if_shoot_Engineer
+ Red_Navi_position[ENEMY_OUTPOST_PROTECT_POINT][0]=12.09;
+ Red_Navi_position[ENEMY_OUTPOST_PROTECT_POINT][1]=8.9;
+ 
+ #endif
+   for(;;)
+   {
+   
+     //导航决策处理
+     Decison_State_Ctl(&decision);
+
+     //击打决策处理
+     sentry_shoot_decision(&decision);
+     //解析裁判系统信息
+     get_referr_data();
+     
+     
+     //哨兵自主决策相关指令处理
+     Sentry_cmd_decision(&decision);
+     
+     //导航点填充
+     decision_point_fill();
+     
+     //决策点推送至导航
+     Navigation_Tx_Send(&navigation_tx);
+     vTaskDelay(1);
+   }
 }
+int mnmnk;
+/* ====== 自动模式选择（遥控器开关组合 -> 决策模式） ====== */
 void AGV_auto_mode(decision_t *mode)
 {
-    if (game_state.game_progress == 4) {
-        if (rc_ctrl.rc.s_l == 1 && rc_ctrl.rc.s_r == 1) {
-            mode->decision_mode = extreme;
-        } else if (rc_ctrl.rc.s_l == 3 && rc_ctrl.rc.s_r == 3) {
-            mode->decision_mode = conservative;
-        } else if (rc_ctrl.rc.s_l == 3 && rc_ctrl.rc.s_r == 2) {
-            mode->decision_mode = flying;
-        } else if (rc_ctrl.rc.s_l == 3 && rc_ctrl.rc.s_r == 1) {
-            mode->decision_mode = patrol;
-        } else if (rc_ctrl.rc.s_l == 1 && rc_ctrl.rc.s_r == 3) {
-            mode->decision_mode = protect;
-        }
-    } else {
-        mode->decision_mode = extreme;
+
+//mnmnk++;
+  if(game_state.game_progress==4)
+  {
+  
+    if(rc_ctrl.rc.s_l==1&&rc_ctrl.rc.s_r==1)
+    {
+      mode->decision_mode=extreme;
     }
+     else if(rc_ctrl.rc.s_l==3&&rc_ctrl.rc.s_r==3)
+    {
+      mode->decision_mode=conservative;
+    }
+    else if(rc_ctrl.rc.s_l==3&&rc_ctrl.rc.s_r==2)
+    {
+      mode->decision_mode=flying;
+    }   
+    else if(rc_ctrl.rc.s_l==3&&rc_ctrl.rc.s_r==1)
+    {
+      mode->decision_mode=patrol;
+    }    
+    else if(rc_ctrl.rc.s_l==1&&rc_ctrl.rc.s_r==3)
+    {
+      mode->decision_mode=protect;
+    }
+    
+  }
+  else 
+  {
+  
+//mnmnk++;
+      mode->decision_mode=extreme;
+  }
 }
 
-void get_referr_data(void)
+/* ====== 获取裁判系统数据（机器人颜色） ====== */
+void get_referr_data()
 {
-    if (robot_status.robot_id <= 9 && robot_status.robot_id > 0) {
-        decision.robot_data.robot_color = red;
-    } else if (robot_status.robot_id >= 101) {
-        decision.robot_data.robot_color = blue;
-    } else {
-        decision.robot_data.robot_color = NO_CONTACT;
-    }
-
-    Robot_ID = (decision.robot_data.robot_color == red)
-        ? UI_Data_RobotID_RSentry : UI_Data_RobotID_BSentry;
+ if( robot_status.robot_id <= 9 && robot_status.robot_id >0 )
+		 decision.robot_data.robot_color = red ;
+		 else if( robot_status.robot_id >= 101)
+			decision.robot_data.robot_color = blue ;
+		 else
+			decision.robot_data.robot_color = NO_CONTACT ;
+      
+      
+      if(decision.robot_data.robot_color==red)
+      {
+        Robot_ID=UI_Data_RobotID_RSentry;
+      }
+      else Robot_ID = UI_Data_RobotID_BSentry;
 }
 
 
 
-static uint16_t Last_HP;
-static uint16_t Last_projectile_allowance_17mm;
-
+//哨兵自主决策相关指令
+uint16_t Last_HP;
+uint16_t Last_projectile_allowance_17mm;
+/* ====== 哨兵指令决策（复活/兑换弹丸/兑换血量） ====== */
 void Sentry_cmd_decision(decision_t *mode)
 {
-    if (game_state.game_progress == 4) {
-        mode->Cmd_condition.Exchange_Projectile_Num = 0;
-        mode->Cmd_condition.If_remote_exchange_HP   = 0;
-        mode->Cmd_condition.If_Immediately_Revive   = 0;
 
-        if (robot_status.current_HP == 0 && Last_HP > 0) {
-            mode->Cmd_condition.Die_cnt++;
-        }
-        mode->Cmd_condition.If_revive = 1;
-        mode->Cmd_condition.Exchange_Projectile_Num = 0;
+  if(game_state.game_progress==4)
+  {
+      mode->Cmd_condition.Exchange_Projectile_Num=0;
+      mode->Cmd_condition.If_remote_exchange_HP=0;
+      mode->Cmd_condition.If_Immediately_Revive=0;
+      
+      if(robot_status.current_HP==0&&Last_HP>0)
+      {
+        mode->Cmd_condition.Die_cnt++;
+      }
+      
 
-        Sentry_Cmd_Fill(&Sentry_cmd_send,
-            mode->Cmd_condition.If_revive,
-            mode->Cmd_condition.If_Immediately_Revive,
-            mode->Cmd_condition.Exchange_Projectile_Num,
-            mode->Cmd_condition.If_remote_exchange_HP);
+      mode->Cmd_condition.If_revive=1;
+      //裁判系统响应了哨兵的自主买弹
 
-        Last_HP = robot_status.current_HP;
-        Last_projectile_allowance_17mm = projectile_allowance.projectile_allowance_17mm;
-    } else {
-        memset(&mode->Cmd_condition, 0, sizeof(Cmd_condition_t));
-        Sentry_Cmd_Fill(&Sentry_cmd_send,
-            mode->Cmd_condition.If_revive,
-            mode->Cmd_condition.If_Immediately_Revive,
-            mode->Cmd_condition.Exchange_Projectile_Num,
-            mode->Cmd_condition.If_remote_exchange_HP);
-    }
+      mode->Cmd_condition.Exchange_Projectile_Num=0;
+      
+      Sentry_Cmd_Fill(&Sentry_cmd_send,mode->Cmd_condition.If_revive,mode->Cmd_condition.If_Immediately_Revive,
+                        mode->Cmd_condition.Exchange_Projectile_Num,mode->Cmd_condition.If_remote_exchange_HP);
+      
+      Last_HP=robot_status.current_HP;
+      Last_projectile_allowance_17mm=projectile_allowance.projectile_allowance_17mm;
+      
+      
+  }
+  else 
+  {
+    memset(&mode->Cmd_condition,0,sizeof(Cmd_condition_t));
+    Sentry_Cmd_Fill(&Sentry_cmd_send,mode->Cmd_condition.If_revive,mode->Cmd_condition.If_Immediately_Revive,
+                        mode->Cmd_condition.Exchange_Projectile_Num,mode->Cmd_condition.If_remote_exchange_HP);
+  }
+  
+  
+
 }
 
 
+int kmnjnk;
+/* ====== 决策初始化 ====== */
 void Decision_Init(decision_t *mode)
 {
-    mode->point = INIT_PACK_POINT;
+kmnjnk++;
+
+  mode->point=INIT_PACK_POINT;
 }
 
+//
+//目前是分区赛决策
+/* ====== 决策状态主控制器 ====== */
 void Decison_State_Ctl(decision_t *mode)
 {
-    if (game_state.game_progress == 4) {
-        Judge_Continuous_Handle(&decision.Judge_condition);
-        AGV_auto_mode(mode);
-        decision_point_chose(mode);
-    } else {
-        /* 非比赛状态：重置条件 */
-        mode->decision_mode = extreme;
-        If_Point_arrived();
-        judge_if_location_over(&decision.Judge_condition);
-        mode->Judge_condition.IF_10s_NotHurted = 1;
-        mode->Judge_condition.IF_3s_NotFound   = 1;
-        mode->Judge_condition.IF_5s_NotFound   = 1;
-        mode->Judge_condition.IF_10s_NotFound  = 1;
-        mode->Judge_condition.IF_HP_Less_50    = 0;
-        mode->Judge_condition.IF_HP_Less_100   = 0;
-        mode->Judge_condition.IF_outpost_destroyed = 0;
-        mode->Judge_condition.IF_fire_lock     = 0;
-        mode->Judge_condition.IF_allowance_less_50 = 0;
-        mode->Judge_condition.IF_HP_recover    = 1;
-        mode->Judge_condition.If_enemy_outpost_lock = 0;
-        judge_if_on_toss(&mode->Judge_condition);
-        judge_if_moving_v(&mode->Judge_condition);
-        mode->Judge_condition.If_chassis_weak  = 0;
-        mode->Judge_condition.IF_need_to_protect = 0;
-        judge_if_need_to_protect(&decision.Judge_condition);
-        mode->Judge_condition.IF_base_armor_spred = 0;
-        mode->Judge_condition.If_fortress_free  = 1;
-        mode->Judge_condition.If_get_allow_17  = 0;
-        mode->Judge_condition.If_chip_base     = 0;
-        mode->Judge_condition.IF_3s_NotHurted  = 1;
-        mode->Judge_condition.IF_5s_NotHurted  = 1;
-        mode->Judge_condition.If_close_to_enemy_out = 0;
-        judge_if_moving_v(&mode->Judge_condition);
 
-        lock_dart_count = 0;
-        if_random_dart  = 0;
-        last_dart_time  = 0;
-        if_update       = 0;
-        hurt_time       = 430;
-        Last_base_hurt_time = 430;
-        decision.keyboard_disable = 0;
-        memset(&map_command, 0, sizeof(map_command));
+  if(game_state.game_progress==4)
+  {
+  //决策判断条件处理
+     Judge_Continuous_Handle(&decision.Judge_condition);
+     
+     
+     //决策的模式处理，根据遥控器来提前确认决策逻辑
+     AGV_auto_mode(mode);
+     
+     
+   //决策模式处理（自主决策加云台手决策）
+     decision_point_chose(mode);
+     
 
-        mode->point = INIT_PACK_POINT;
-    }
+  }
+  else 
+  {
+  
+  
+  
+  //决策条件清零
+  mode->decision_mode=extreme;
+//  mode->decision_mode=guard;
+  
+  If_Point_arrived();
+  judge_if_location_over(&decision.Judge_condition);
+//  mode->Judge_condition.IF_Arrived = judge_if_location_over();
+  mode->Judge_condition.IF_10s_NotHurted = 1;
+  mode->Judge_condition.IF_3s_NotFound = 1;
+  mode->Judge_condition.IF_5s_NotFound = 1;
+  mode->Judge_condition.IF_10s_NotFound = 1;
+  mode->Judge_condition.IF_HP_Less_50 = 0;
+  mode->Judge_condition.IF_HP_Less_100 = 0;
+  mode->Judge_condition.IF_outpost_destroyed = 0;
+  mode->Judge_condition.IF_fire_lock = 0;
+  mode->Judge_condition.IF_allowance_less_50 = 0;
+  mode->Judge_condition.IF_HP_recover = 1;
+  mode->Judge_condition.If_enemy_outpost_lock=0;
+//  mode->Judge_condition.If_on_toss=
+//  mode->Judge_condition.If_moving_v=
+  judge_if_on_toss(&mode->Judge_condition);
+  judge_if_moving_v(&mode->Judge_condition);
+  mode->Judge_condition.If_chassis_weak=0;
+  mode->Judge_condition.IF_need_to_protect=0;
+  judge_if_need_to_protect(&decision.Judge_condition);
+  mode->Judge_condition.IF_base_armor_spred=0;
+  mode->Judge_condition.If_fortress_free=1;
+  mode->Judge_condition.If_get_allow_17=0;
+  mode->Judge_condition.If_chip_base=0;
+  mode->Judge_condition.IF_3s_NotHurted=1;
+  mode->Judge_condition.IF_5s_NotHurted=1;
+  
+  mode->Judge_condition.If_close_to_enemy_out=0;
+  judge_if_moving_v(&mode->Judge_condition);
+  
+
+  lock_dart_count=0;
+  if_random_dart=0;
+  last_dart_time=0;
+  if_update=0;
+  hurt_time=430;
+  Last_base_hurt_time=430;
+  decision.keyboard_disable=0;
+      memset(&map_command,0,sizeof(map_command));
+//   sentry_extreme_decision(mode);
+  //导航至启动区
+// mode->point= ENEMY_OUTPOST_POINT;
+  
+  //决策的模式处理，根据遥控器来提前确认决策逻辑
+//     AGV_auto_mode(mode);
+     
+     
+   //决策模式处理（自主决策加云台手决策）
+//     decision_point_chose(mode);
+//  mode->point=WE_FORTRESS_POINT;
+
+  
+//     sentry_air_control_decision(mode);
+  
+  
+  
+mode->point=INIT_PACK_POINT;
+////mode->point=WE_DEPOT_POINT;
+  }
+  
+  
+  
 }
 uint8_t last_decision_point;
 
+/* 判断是否距离敌方前哨站较近 */
 void judge_if_close_to_enemy_out(Judge_condition_t *mode)
 {
-    if ((fabsf(navigation_rx.current_x - navigation_tx.navi_set_x_pos) < 1.5f
-      && fabsf(navigation_rx.current_y - navigation_tx.navi_set_y_pos) < 1.5f)
-      || mode->IF_Arrived == 1) {
-        mode->If_close_to_enemy_out = 1;
-    } else {
-        mode->If_close_to_enemy_out = 0;
-    }
+  if((fabs(navigation_rx.current_x-navigation_tx.navi_set_x_pos)<1.5
+   &&fabs(navigation_rx.current_y-navigation_tx.navi_set_y_pos)<1.5)
+ ||mode->IF_Arrived==1)
+   {
+     mode->If_close_to_enemy_out=1;
+   }
+   else mode->If_close_to_enemy_out=0;
 }
 
-void judge_if_keyboard_disable(decision_t *mode)
+/* 判断键盘一键失能 */
+void judge_if_keyboard_disable(decision_t *mode)//判断是否一键失能
 {
-    if (if_update == 1 && map_command.cmd_keyboard == 'D') {
-        mode->keyboard_disable = 1;
-    } else if (if_update == 1 && map_command.cmd_keyboard == 'W') {
-        mode->keyboard_disable = 0;
-    }
+   if(if_update==1&&map_command.cmd_keyboard=='D')
+   {
+     mode->keyboard_disable=1;     
+   }
+   else if(if_update==1&&map_command.cmd_keyboard=='W')
+   {
+     mode->keyboard_disable=0;
+   }
 }
-
-void decision_point_chose(decision_t *mode)
-{
-    /* 云台手标点 → 强制切到空中模式 */
-    if (if_update == 1) {
-        mode->decision_mode = air_control;
-        judge_if_keyboard_disable(mode);
-    }
-
-    if (if_update == 1 && if_map_correct == 1) {
-        map_control_fill(mode);
-    }
-
-    /* 决策模式切换时重置起点 */
-    if (mode->decision_mode != mode->last_decision_mode) {
-        mode->last_decision_mode = mode->decision_mode;
-        mode->point = INIT_PACK_POINT;
-    }
-
-    /* ===== 根据决策模式分发 ===== */
-    switch (mode->decision_mode) {
-    case extreme:      sentry_extreme_decision(mode);      break;
-    case conservative: sentry_conservative_decision(mode); break;
-    case patrol:       sentry_patrol_decision(mode);       break;
-    case flying:       sentry_flying_decision(mode);       break;
-    case protect:      sentry_protect_decision(mode);      break;
-    case air_control:  sentry_air_control_decision(mode);  break;
-    default:           sentry_test_decision(mode);         break;
-    }
-}
-
-
-
 
 void sentry_test_decision(decision_t *mode)
 {
-    mode->point = mode->Judge_condition.IF_HP_Less_100
-        ? WE_DEPOT_POINT : CENTRL_HIGH_POINT;
+  if(mode->Judge_condition.IF_HP_Less_100)
+  {
+    mode->point=WE_DEPOT_POINT;
+  }
+  else 
+  {
+    mode->point=CENTRL_HIGH_POINT;  
+  }
 }
+
+int get_clear_count=0;
+//uint8_t navi_state_get;
+uint8_t if_navi_receive=0;
+int rx_point_lose;
+
+/* ====== 决策点位选择（云台手标点 -> 模式路由） ====== */
+void decision_point_chose(decision_t *mode)
+{
+
+//  static uint8_t last_point;
+  if(if_update==1)//响应云台手点位
+  {
+    mode->decision_mode=air_control;
+    
+       // 判断是否一键失能
+    judge_if_keyboard_disable(mode);
+//    if_update=0;
+  }
+  
+  if(if_update==1&&if_map_correct==1)
+  {
+    map_control_fill(mode);
+  }
+  
+ //决策变换后将点位初始化
+  if(mode->decision_mode!=mode->last_decision_mode)
+  {
+    mode->last_decision_mode=mode->decision_mode;
+    mode->point=INIT_PACK_POINT;
+  }
+  
+  sentry_test_decision(mode);
+  
+  //点位决策
+  
+}
+
+
+
 
 void sentry_air_control_decision(decision_t *mode)
 {
-    switch (mode->point) {
-    case MANUAL_POINT:
-        if (mode->Judge_condition.IF_HP_Less_100 == 1
-            || mode->Judge_condition.If_get_allow_17 == 1) {
-            mode->point = WE_DEPOT_POINT;
+  switch (mode->point)
+   {
+      case MANUAL_POINT:
+      {
+         if(mode->Judge_condition.IF_HP_Less_100==1||mode->Judge_condition.If_get_allow_17==1)
+        {
+          mode->point=WE_DEPOT_POINT;
         }
         break;
-    case WE_DEPOT_POINT:
-        if (mode->Judge_condition.IF_Arrived == 1
-            && mode->Judge_condition.IF_HP_recover == 1) {
-            mode->point = MANUAL_POINT;
+      }
+      case WE_DEPOT_POINT:
+      {
+      
+        if((mode->Judge_condition.IF_Arrived==1&&mode->Judge_condition.IF_HP_recover==1))
+        {
+           mode->point=MANUAL_POINT;
         }
         break;
-    default:
-        mode->point = MANUAL_POINT;
+      }
+      default:
+      {
+      kmnjnk++;
+        mode->point=MANUAL_POINT;
         break;
-    }
+      }
+   }
 }
 
 
 //后续主要维护决策
+/* ====== 激进模式决策（主战模式） ====== */
 void sentry_extreme_decision(decision_t *mode)
 {
   switch(mode->point)
@@ -433,8 +623,14 @@ void sentry_extreme_decision(decision_t *mode)
   
   }
 }
+int kofjfs;
+//稍微没有那么激进的决策 考虑是否添加打前哨 WE_PATROL_POINT WE_FORTRESS_POINT WE_FLYING_POINT
+/* ====== 保守模式决策 ====== */
 void sentry_conservative_decision(decision_t *mode)
 {
+  
+  
+  kofjfs++;
   switch(mode->point)
   {
     case INIT_PACK_POINT:
@@ -505,6 +701,7 @@ void sentry_conservative_decision(decision_t *mode)
 }
 
 //只打前哨站不去敌方家里面不上堡垒 留一版保证能实现的所有功能 ENEMY_OUTPOST_POINT CENTRL_HIGH_POINT WE_PATROL_POINT
+/* ====== 巡逻模式决策（只打前哨站） ====== */
 void sentry_patrol_decision(decision_t *mode)
 {
   
@@ -586,6 +783,7 @@ void sentry_patrol_decision(decision_t *mode)
   }
 }
 //飞坡落点加打前哨 ENEMY_OUTPOST_POINT CENTRL_HIGH_POINT WE_FLYING_POINT
+/* ====== 飞坡模式决策 ====== */
 void sentry_flying_decision(decision_t *mode)
 {
   
@@ -668,6 +866,7 @@ void sentry_flying_decision(decision_t *mode)
 
 //分区赛上场决策
 //场地测试版本
+/* ====== 保护模式决策 ====== */
 void sentry_protect_decision(decision_t *mode)
 {
 
@@ -811,6 +1010,7 @@ void map_control_fill(decision_t *mode)
 float diff_yaw;
      float transform_x,transform_y;float dist_x,dist_y;
      float transform_angle;
+/* ====== 决策点位填充（计算导航坐标） ====== */
 void decision_point_fill()
 {
     
@@ -961,6 +1161,7 @@ void If_Point_arrived()
      navigation_rx.if_arrived=0;
 }
 
+/* 判断是否需要上敌方堡垒 */
 void judge_if_need_to_enemy_fortress(Judge_condition_t *mode)
 {
     if(decision.robot_data.robot_color==red)
@@ -989,6 +1190,7 @@ void judge_if_need_to_enemy_fortress(Judge_condition_t *mode)
 
 
 
+/* 判断决策点是否切换 */
 void IF_decision_point_change(Judge_condition_t *mode)
 {
 
@@ -997,6 +1199,7 @@ void IF_decision_point_change(Judge_condition_t *mode)
 // 判断基地是否扣血
 
 uint16_t Last_base_hurt_time=420;
+/* 判断基地是否在吊射状态 */
 void judge_if_chip_base(uint16_t base_hp,Judge_condition_t *mode)
 {
 
@@ -1019,6 +1222,7 @@ void judge_if_chip_base(uint16_t base_hp,Judge_condition_t *mode)
 // static uint16_t allow_to_get_17mm;//记录可以兑换的小弹丸
 // static uint16_t already_allowance_17;//记录已经拿取的小弹丸
 //检测是否需要回补给区补弹
+/* 判断是否需要补给区补给17mm弹丸 */
 void judge_if_need_allow_17(Judge_condition_t *mode)
 {
 
@@ -1060,6 +1264,7 @@ remain_time = game_state.stage_remain_time % 60;
 }
 
 /*检测是否10s 5s 3s未受击打*/
+/* 判断哨兵是否未受击超过阈值 */
 bool judge_if_nothurt(Judge_condition_t *mode)
 {
 
@@ -1107,6 +1312,7 @@ bool judge_if_nothurt(Judge_condition_t *mode)
 /*检测是否3,5,10s未发现敌人*/
 
 
+/* 判断哨兵是否未发现敌人超过阈值 */
 void judge_if_not_found(Judge_condition_t *mode)
 { 
   static int hurt_time=0;
@@ -1155,6 +1361,7 @@ void judge_if_not_found(Judge_condition_t *mode)
 
 
 /*检测是否到达导航点*/
+/* 判断导航是否结束 */
 void judge_if_location_over(Judge_condition_t *mode)
 { 
 
@@ -1168,6 +1375,7 @@ void judge_if_location_over(Judge_condition_t *mode)
   }
 }
 
+/* 判断允许发弹量是否小于50 */
 void judge_if_allowance_less_50(Judge_condition_t *mode)
 {
   if(projectile_allowance.projectile_allowance_17mm<30)
@@ -1177,6 +1385,7 @@ void judge_if_allowance_less_50(Judge_condition_t *mode)
   else mode->IF_allowance_less_50=0;
 }
 
+/* 判断允许发弹量是否小于100 */
 void judge_if_allowance_less_100(Judge_condition_t *mode)
 {
   if(projectile_allowance.projectile_allowance_17mm<70)
@@ -1186,6 +1395,7 @@ void judge_if_allowance_less_100(Judge_condition_t *mode)
   else mode->IF_allowance_less_100=0;
 }
 
+/* 判断哨兵血量是否小于200 */
 void judge_if_HP_less_200(Judge_condition_t *mode)
 {
    if(robot_status.current_HP<=150)
@@ -1196,6 +1406,7 @@ void judge_if_HP_less_200(Judge_condition_t *mode)
 }
 
 //判断血量是否低于100
+/* 判断哨兵血量是否小于100 */
 void judge_if_HP_less_100(Judge_condition_t *mode)
 {
    if(robot_status.current_HP<=110)
@@ -1207,6 +1418,7 @@ void judge_if_HP_less_100(Judge_condition_t *mode)
 
 
 //判断血量是否低于150
+/* 判断哨兵血量是否小于50 */
 void judge_if_HP_less_50(Judge_condition_t *mode)
 {
    if(robot_status.current_HP<=70)
@@ -1220,6 +1432,7 @@ void judge_if_HP_less_50(Judge_condition_t *mode)
 uint16_t last_dart_time=0;
 uint16_t lock_dart_count=0;
 uint8_t if_random_dart=0;
+/* 判断己方基地护甲是否展开 */
 void judge_base_armor_spred(Judge_condition_t *mode, int16_t base_HP)
 {
 
@@ -1247,6 +1460,7 @@ void judge_base_armor_spred(Judge_condition_t *mode, int16_t base_HP)
 }
 //小能量机关开启后持续45s
 uint16_t enemy_small_energy_time=500;
+/* 判断敌方是否开启小能量机关 */
 bool judge_if_enemy_small_energy(Judge_condition_t *mode,int16_t outpost_HP )
 {
   static uint16_t Last_outpost_HP;
@@ -1267,6 +1481,7 @@ bool judge_if_enemy_small_energy(Judge_condition_t *mode,int16_t outpost_HP )
   
 }
 //判断己方前哨站是否被击毁
+/* 判断己方前哨站是否被击毁 */
 void judge_if_outpost_destroyed(Judge_condition_t *mode,int16_t outpost_HP )
 {
   if(outpost_HP<=250)
@@ -1278,6 +1493,7 @@ void judge_if_outpost_destroyed(Judge_condition_t *mode,int16_t outpost_HP )
 }
 
 //判断发射机构是否锁住
+/* 判断发射机构是否锁住 */
 void judge_if_fire_lock(Judge_condition_t *mode)
 {
    
@@ -1295,6 +1511,7 @@ void judge_if_fire_lock(Judge_condition_t *mode)
 
 
 
+/* 判断哨兵是否回血完成 */
 void judge_if_HP_recover(Judge_condition_t *mode)
 {
 
@@ -1308,6 +1525,7 @@ void judge_if_HP_recover(Judge_condition_t *mode)
 
 
 /*根据导航与遇敌情况以及受击情况来自主选择底盘模式  联盟赛一直陀螺，根据速度输入来分配陀螺和移动的速度分配*/
+/* ====== 自动底盘速度控制 ====== */
 void AGV_auto_chassis(decision_t *mode)
 {
 
@@ -1417,6 +1635,7 @@ void AGV_auto_chassis(decision_t *mode)
 //哨兵初始血量为400
 
 //运动决策
+/* 连续状态判断处理（周期性调用） */
 void Judge_Continuous_Handle(Judge_condition_t *mode)
 {
   if(game_state.game_progress==4)
@@ -1470,6 +1689,7 @@ void Judge_Continuous_Handle(Judge_condition_t *mode)
   }
 }
 
+/* 判断堡垒增益点弹药是否少于50 */
 void judge_if_fortress_allow_less_50(Judge_condition_t *mode)
 {
   if(projectile_allowance.projectile_allowance_fortress<50)
@@ -1482,6 +1702,7 @@ void judge_if_fortress_allow_less_50(Judge_condition_t *mode)
   }
 }
 
+/* 判断是否在中央荒地上 */
 void judge_if_on_toss(Judge_condition_t *mode)
 {
   float current_x,current_y;
@@ -1497,6 +1718,7 @@ void judge_if_on_toss(Judge_condition_t *mode)
  
 }
 
+/* 判断是否正在过U型弯 */
 void judge_if_moving_v(Judge_condition_t *mode)
 {
 
@@ -1515,6 +1737,7 @@ void judge_if_moving_v(Judge_condition_t *mode)
 }
 
 
+/* 判断敌方前哨站是否被摧毁 */
 void judge_if_enemy_outpost_destroyed(Judge_condition_t *mode,int16_t enemy_outpost_HP)
 {
   if(enemy_outpost_HP==0)
@@ -1524,6 +1747,7 @@ void judge_if_enemy_outpost_destroyed(Judge_condition_t *mode,int16_t enemy_outp
   else mode->IF_enemy_outpost_destroyed=0;
 }
 
+/* 判断堡垒增益区是否空闲 */
 void judge_if_fortress_free(Judge_condition_t *mode)
 { 
   if(decision.robot_data.robot_color==red)
@@ -1548,6 +1772,7 @@ void judge_if_fortress_free(Judge_condition_t *mode)
 }
 
 
+/* 判断敌方前哨站是否停转 */
 void judge_if_enemy_outpost_lock(Judge_condition_t *mode)
 {
   if(mode->IF_base_armor_spred==1||game_state.stage_remain_time<240)
@@ -1571,6 +1796,7 @@ void judge_if_enemy_outpost_lock(Judge_condition_t *mode)
 //        (map_robot_data.infantry_4_position_x>17&&map_robot_data.infantry_4_position_x<28)
 
 
+/* 判断是否需要去保护基地 */
 void judge_if_need_to_protect(Judge_condition_t *mode)
 {  
   u8_to_u16 hero_x,hero_y,infantry_3_x,infantry_3_y,infantry_4_x,infantry_4_y;
@@ -1618,6 +1844,7 @@ void judge_if_need_to_protect(Judge_condition_t *mode)
 }
 
 
+/* 判断底盘是否需要进入虚弱模式 */
 void judge_if_chassis_weak()
 {
   if(game_state.stage_remain_time<90)
@@ -1629,6 +1856,7 @@ void judge_if_chassis_weak()
 }
 
 
+/* 判断是否需要停止导航击打敌人 */
 void judge_if_stop_navi()
 {
   if(receive_gimbal_data.vision_state!=vision_lost)
@@ -1639,6 +1867,7 @@ void judge_if_stop_navi()
 }
 
 
+/* ====== 哨兵射击决策 ====== */
 void sentry_shoot_decision(decision_t *mode)
 {
   judge_if_shoot(mode);//判断是否击打某些车体
@@ -1720,6 +1949,7 @@ void judge_shoot_top_senior_priority(decision_t *mode)
   else mode->top_senior_priority=ARMOR_HERO;
   
 }
+/* ====== 射击条件判断 ====== */
 void judge_if_shoot(decision_t *mode)
 {
    if(game_state.game_progress!=4)

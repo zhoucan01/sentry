@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    navigation.c
- * @brief   导航通信 - USB虚拟串口收发 + 坐标系转换
+ * @brief   导航通信 - USB虚拟串口收发 + 坐标系转�?
  ******************************************************************************
  */
 
@@ -20,7 +20,7 @@ navigation_rx_t  navigation_rx;
 navigation_tx_t  navigation_tx;
 uint8_t          TX_Buff[navigation_tx_len];
 
-static int navi_tx_count;
+int navi_tx_count;
 
 void navigation_rx_handle(uint8_t *buff, uint32_t Len, navigation_rx_t *data)
 {

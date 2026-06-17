@@ -34,7 +34,7 @@
 #define TRIG_OUTPOST_POWER_LIMIT 250.0f
 #define TRIG_NORMOL_POWER_LIMIT  80.0f
 
-/* ---- 卡弹检测 ---- */
+/* ---- 卡弹检�?---- */
 #define BLOCK_CURRENT_THRESH    7000
 #define BLOCK_SPEED_THRESH      50
 #define BLOCK_CNT_THRESH        70

@@ -15,28 +15,39 @@
 #include "vofa.h"
 #include "controller.h"
 #include "CAN_transmit.h"
+// 云台通信状态
 com_mode_t gimbal_com;
+// 云台全局状态
 gimbal_t gimbal;
 
 //后续准备写一个函数来维护小yaw与大yaw之间的真实旋转角度用来视觉追击，目前没有时间写,
 
 
+// yaw角度环PID
 pid_struct_t pid_yaw_position;
+// pitch角度环PID
 pid_struct_t pid_pitch_position;
 
+// yaw速度环PID
 pid_struct_t pid_yaw_speed;
+// pitch速度环PID
 pid_struct_t pid_pitch_speed;
 
 
 
+// yaw前馈
 feedforward_control_t yaw_feedforward;
+// pitch前馈
 feedforward_control_t pitch_feedforward;
+// 主任务: 通信→模式→控制
 void gimbal_run()
 {
 
 vTaskDelay(2);
+// 初始化PID参数
 gimbal_pid_init();
 gimbal.yaw_cruise_dirc=1;
+// 初始化云台目标值(设为当前角度)
 gimbal_init(&gimbal);
   gimbal.pitch_cruise_dire=1;
   gimbal.small_gimbal_judge.if_front_update=1;
@@ -44,12 +55,15 @@ gimbal_init(&gimbal);
   for(;;)
   {
   
+  // 检测通信状态
   get_gimbal_com();
+  // 更新大小yaw相对角度
   get_base_link_angle(&gimbal);
   
   switch(gimbal_com)
   {
     
+      // 通信异常→关闭云台
     case com_err:
     {
       gimbal.vision_state=vision_lost;
@@ -57,6 +71,7 @@ gimbal_init(&gimbal);
       gimbal_off_set(&gimbal);
        break;
     }
+      // 通信正常→进入模式选择
     case com_nom:
     {
       gimbal.if_pitch_can=1;
@@ -69,22 +84,30 @@ gimbal_init(&gimbal);
   
 }
 
+// PID+前馈初始化
 void gimbal_pid_init()
 {
+  // yaw角度环 Kp=2.0 输出限幅70(deg/s)
   pid_init(&pid_yaw_position,2.0,0,0,0,70);
+  // yaw速度环 Kp=400 输出限幅30000(电流)
   pid_init(&pid_yaw_speed,400,0,0,0,30000);
+  // pitch角度环 Kp=0.28 输出限幅5(deg/s)
   pid_init(&pid_pitch_position,0.28,0,0,0,5);
+  // pitch速度环 Kp=0.3 输出限幅8(转矩)
   pid_init(&pid_pitch_speed,0.3,0,0,0,8);
   //目前视觉击打车体时用的是前馈，只能打高速平移和静止车体
+  // yaw前馈增益15
   feedforward_control_init(&yaw_feedforward,15,0,100);
   
   
+  // pitch前馈增益2
   feedforward_control_init(&pitch_feedforward,2,0,100);
   Vision_Gimbal_Init();
 }
 
 
 
+// 云台初始化: yaw/pitch=IMU当前角度
 void gimbal_init(gimbal_t *mode)
 {
 
@@ -107,6 +130,7 @@ mode->small_gimbal_judge.lost_cnt_cnt=2000;
   
   
 }
+// 通信检测: 三条件→com_nom/com_err
 void get_gimbal_com()
 {
 
@@ -125,6 +149,7 @@ int last_get=0;
 int lost_time;
 int get_target=0;
 //int kmjfj;  
+// 模式选择: off/rc/pc
 void choose_gimbal_mode(gimbal_t *mode)
 {
 //kmjfj++;
@@ -155,6 +180,7 @@ void choose_gimbal_mode(gimbal_t *mode)
  }
 }
 
+// 关闭模式: 回中+清电流
 void gimbal_off_set(gimbal_t *mode)
 {
   mode->yaw_set=INS.YawTotalAngle;
@@ -176,11 +202,13 @@ void gimbal_off_set(gimbal_t *mode)
    
    
 }
+// 临时变量(待清理)
 int lllll;
 
 
 
 
+// PC视觉: 按vision_state分发
 void gimbal_pc_set(gimbal_t *mode)
 {
 
@@ -229,12 +257,14 @@ int lock_cnt;
 
 float get_yaw_diff_ecd=0;
   float yaw_motor_obj=0;
+// 锁定检测
 void get_small_lock_state(gimbal_t *mode)
 {
 
 
 
 
+ // 视觉目标与当前yaw的角度差
  get_yaw_diff=TJ_Vision_Rx.total_yaw-INS.YawTotalAngle;
  
  if(get_yaw_diff>180)
@@ -246,6 +276,7 @@ void get_small_lock_state(gimbal_t *mode)
    get_yaw_diff+=360;
  }
  
+ // 角度差→编码器单位(8192=360度)
  get_yaw_diff_ecd=get_yaw_diff*8192/(360);
  
  
@@ -292,12 +323,14 @@ yaw_motor_obj = yaw_mid_ecd;
 
 
 
+// 视觉选择入口
 void gimbal_vision_chose(gimbal_t *mode)
 {
   
 }
 int kmjfj;
 
+// 视觉状态更新
 void gimbal_vision_state(gimbal_t *mode)
 {
   
@@ -381,11 +414,14 @@ void gimbal_vision_state(gimbal_t *mode)
 
 
 
+// 遥控模式: 摇杆→PID→电流
 void gimbal_rc_set(gimbal_t *mode)
 {
 
 
+  // 摇杆输入→yaw角度增量(系数0.0003)
   mode->yaw_set-=control_data.gimbal_yaw_in*0.0003;
+  // 摇杆输入→pitch角度增量(系数0.0001)
   mode->pitch_set-=control_data.gimbal_pitch_in*0.0001;
   
   mode->pitch_set=pitch_limit(mode->pitch_set);
@@ -408,6 +444,7 @@ void gimbal_rc_set(gimbal_t *mode)
 }
 
 
+// 巡航: yaw左右+pitch上下扫描
 void gimbal_cruise_set(gimbal_t *mode)
 {
 
@@ -445,6 +482,7 @@ void gimbal_cruise_set(gimbal_t *mode)
 
 int vision_count=0;
 
+// 视觉追踪入口(→vision_car)
 void gimbal_vision_set(gimbal_t *mode)
 {
 
@@ -461,6 +499,7 @@ gimbal_vision_car(mode);
 
 int16_t oioi;
 //打前哨站模式
+// 前哨站追踪: 卡尔曼+前馈
 void gimbal_vision_outpost_set(gimbal_t *mode)
 { 
 oioi++;
@@ -498,12 +537,15 @@ oioi++;
   mode->pitch_set=INS.Roll;
 }
 
+// 车体追踪: 位置PID+前馈→速度PID→电流
 void gimbal_vision_car(gimbal_t *mode)
 {
 
 
    //Rx_Vision.yaw_obj
+  // 从视觉数据获取yaw目标角度
   mode->yaw_vision_set=TJ_Vision_Rx.total_yaw;
+  // 从视觉数据获取pitch目标角度
   mode->pitch_vision_set=TJ_Vision_Rx.pitch;
   
   mode->pitch_vision_set=pitch_limit(mode->pitch_vision_set);
@@ -520,9 +562,11 @@ void gimbal_vision_car(gimbal_t *mode)
   
   
   
+  // 位置环PID: 角度误差→速度命令
   mode->yaw_speed_set=pid_calc(&pid_Vision_Yaw_angle,INS.YawTotalAngle,mode->yaw_vision_set)
   +feedforward_control_calc(&yaw_feedforward,mode->yaw_vision_set);
 //                      
+  // 速度环PID: 速度误差→电流命令
   yaw_motor.motor_tar.set_current=pid_calc(&pid_Vision_Yaw_speed,INS.Gyro[2]*10,mode->yaw_speed_set)
   ;
   
@@ -538,6 +582,7 @@ void gimbal_vision_car(gimbal_t *mode)
 
 
 
+// 速度限幅(平滑过渡)
 float limit_addspeed(float speed_set,float speed_ref,float addspeed_limit)
 {
 	if(fabs(speed_set-speed_ref)>addspeed_limit)
@@ -557,6 +602,7 @@ float limit_addspeed(float speed_set,float speed_ref,float addspeed_limit)
 //控制云台向后边运动，整体朝向调后
 //调后后瞄到敌人就将目标值转换成视觉传过来的目标值
 float yaw_fliter_set;
+// 背面追踪: yaw翻转180
 void gimbal_vision_back_set(gimbal_t *mode)
 {
   if(mode->vision_state==vision_back&&mode->small_gimbal_judge.if_front_update==1)
@@ -595,10 +641,12 @@ void gimbal_vision_back_set(gimbal_t *mode)
     3背后大yaw感知相机也可以用这个角度来调整朝向
 */
 float current_transform_ecd,current_transform_angle;
+// 坐标变换: 大小yaw相对角度
 void get_base_link_angle(gimbal_t *mode)
 {
    
 //   mode->transform.
+   // 小yaw编码器→相对大yaw中点的偏移
    mode->transform.current_transform_ecd=yaw_motor.motor_measure.ecd-yaw_mid_ecd;
    
    if(mode->transform.current_transform_ecd>4096)
@@ -632,6 +680,7 @@ void get_base_link_angle(gimbal_t *mode)
 
 
 
+// yaw翻转~170度
 void gimbal_back_set(gimbal_t *mode)
 {
   if(yaw_motor.motor_measure.ecd>3305&&yaw_motor.motor_measure.ecd<4744)
@@ -644,6 +693,7 @@ void gimbal_back_set(gimbal_t *mode)
   }
 }
 
+// pitch巡航 -29~29度
 void gimbal_pitch_cruise(gimbal_t *mode)
 { 
 //巡航的上下限位要根据你的巡航速度和巡航pid来给定.简单来来说打印看一下是否真实角度是否到达限位
@@ -669,9 +719,13 @@ void gimbal_pitch_cruise(gimbal_t *mode)
   
 }
 
+// 巡航换向计数(待清理)
 int okokol;
+// 临时变量(待清理)
 int ppppp0;
+// 临时变量(待清理)
 int uuuy;
+// yaw巡航 左右限位+大yaw补偿
 void gimbal_yaw_cruise(gimbal_t *mode)
 {
 
@@ -679,6 +733,7 @@ void gimbal_yaw_cruise(gimbal_t *mode)
     
 
 
+    // yaw巡航方向: 1=正向(左移)
     if(mode->yaw_cruise_dirc==1)
     {
      if(gimbal_left_limit(yaw_motor.motor_measure.ecd)<min_diff_ecd)
@@ -712,6 +767,7 @@ void gimbal_yaw_cruise(gimbal_t *mode)
   }
   
    
+   // yaw目标 = 小yaw巡航 + 大yaw旋转补偿
    mode->yaw_set+=((yaw_cruise_diff)*mode->yaw_cruise_dirc+big_yaw_cruise_diff*mode->big_yaw_curise_dire);
   
   
@@ -725,6 +781,7 @@ void gimbal_yaw_cruise(gimbal_t *mode)
 /**
 *@note pitch角度限幅
 */
+// pitch限幅 [-25.5,22]
 float pitch_limit(float data)
 {
 
@@ -744,6 +801,7 @@ float pitch_limit(float data)
 /**
 *@note yaw轴巡航限幅
 */
+// 右限位距离
 uint16_t gimbal_right_limit(int16_t motor_ecd)
 {
 
@@ -754,6 +812,7 @@ diff_ecd=abs(motor_ecd-yaw_right_ecd);
   return diff_ecd;
 }
 
+// 左限位距离
 uint16_t gimbal_left_limit(int16_t motor_ecd)
 {
 
@@ -770,6 +829,7 @@ diff_ecd=abs(motor_ecd-yaw_left_ecd);
 int tttt;
 //float diff_time;
 //uint32_t time;
+// printf调试任务
 void printf_task(void const * argument)
 {
 	while(1)
@@ -789,3 +849,6 @@ Vofa_Send_Data4(INS.YawTotalAngle,INS.Pitch,INS.Roll,(float)pid_Vision_Yaw_speed
   
 	}
 }
+
+
+

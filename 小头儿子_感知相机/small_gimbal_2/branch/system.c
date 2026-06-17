@@ -1,7 +1,7 @@
 /**
  ******************************************************************************
  * @file    system.c
- * @brief   å°äº‘å°ç³»ç»Ÿä»»åŠ¡ - é€šä¿¡æ£€æµ‹ + è§†è§‰é‡ç½® + ç¦»çº¿æ£€æµ‹
+ * @brief   Ð¡ÔÆÌ¨ÏµÍ³ÈÎÎñ - Í¨ÐÅ¼ì²â + ÊÓ¾õÖØÖÃ + ÀëÏß¼ì²â
  ******************************************************************************
  */
 
@@ -16,18 +16,20 @@
 
 gimbal_system_t gimbal_system;
 toe_offline_t   toe_offline[ERROR_LIST_LENGHT] = {0};
+Wheel_State_t   Wheel_State;
 
 #if INCLUDE_uxTaskGetStackHighWaterMark
     uint32_t detect_task_stack;
 #endif
 
-/* ---- å†…éƒ¨å‡½æ•° ---- */
+/* ---- ÄÚ²¿º¯Êý ---- */
 static void detect_init(void);
 
 void system_run(void const *argument)
 {
     (void)argument;
-    for (;;) {
+    for (;;)
+    {
         get_control_mode(&control_data);
         Tj_Send_Data(&TJ_Vision_Tx);
         communicate_pin_state(&control_data);
@@ -38,10 +40,13 @@ void system_run(void const *argument)
 
 void get_control_mode(control_data_t *mode)
 {
-    if (toe_offline[BOARD_TOE].communication_state == COMMUNICATION_NONE) {
+    if (toe_offline[BOARD_TOE].communication_state == COMMUNICATION_NONE)
+    {
         gimbal_system.control_com = com_err;
         com_data_reset(&control_data);
-    } else {
+    }
+    else
+    {
         gimbal_system.control_com = com_nom;
     }
     gimbal_system.last_control_com = gimbal_system.control_com;
@@ -56,7 +61,8 @@ void communicate_pin_state(control_data_t *mode)
 
 void vision_reset(TJ_Vision_Rx_t *data)
 {
-    if (toe_offline[VISION_TOE].communication_state == COMMUNICATION_NONE) {
+    if (toe_offline[VISION_TOE].communication_state == COMMUNICATION_NONE)
+    {
         memset(data, 0, sizeof(TJ_Vision_Rx_t));
     }
 }
@@ -73,7 +79,7 @@ void com_data_reset(control_data_t *mode)
     mode->other_data.wheel_state = 0;
 }
 
-/* ======================== ç¦»çº¿æ£€æµ‹ä»»åŠ¡ ======================== */
+/* ======================== ÀëÏß¼ì²âÈÎÎñ ======================== */
 
 static void detect_init(void)
 {
@@ -88,12 +94,13 @@ static void detect_init(void)
         BOARD_MAX_OFFLINE_FRAME_RATE,
     };
 
-    for (int i = 0; i < ERROR_LIST_LENGHT; i++) {
-        toe_offline[i].offline_frame_rate   = 0;
+    for (int i = 0; i < ERROR_LIST_LENGHT; i++)
+    {
+        toe_offline[i].offline_frame_rate    = 0;
         toe_offline[i].max_offline_frame_rate = max_rate[i];
-        toe_offline[i].communication_state   = COMMUNICATION_MORMAL;
+        toe_offline[i].communication_state    = COMMUNICATION_MORMAL;
         toe_offline[i].toe_offline_data_handle_f = NULL;
-        toe_offline[i].toe_unable_f              = NULL;
+        toe_offline[i].toe_unable_f               = NULL;
         toe_offline[i].toe_connect_soft_restart_f = NULL;
     }
 }
@@ -103,18 +110,24 @@ void DETECT_task(void const *argument)
     (void)argument;
     detect_init();
 
-    for (;;) {
-        for (int i = 0; i < ERROR_LIST_LENGHT; i++) {
+    for (;;)
+    {
+        for (int i = 0; i < ERROR_LIST_LENGHT; i++)
+        {
             toe_offline[i].offline_frame_rate++;
             if (toe_offline[i].offline_frame_rate
-                > toe_offline[i].max_offline_frame_rate) {
+                > toe_offline[i].max_offline_frame_rate)
+            {
                 toe_offline[i].communication_state = COMMUNICATION_NONE;
                 toe_offline[i].offline_frame_rate =
                     toe_offline[i].max_offline_frame_rate;
-                if (toe_offline[i].toe_offline_data_handle_f != NULL) {
+                if (toe_offline[i].toe_offline_data_handle_f != NULL)
+                {
                     toe_offline[i].toe_offline_data_handle_f();
                 }
-            } else {
+            }
+            else
+            {
                 toe_offline[i].communication_state = COMMUNICATION_MORMAL;
             }
         }

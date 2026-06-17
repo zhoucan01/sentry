@@ -27,26 +27,32 @@ shoot_t stander_shoot = {
 pid_struct_t pid_shoot_speed[2];
 com_mode_t   shoot_com;
 
-static int   fire_num = 0;
-static bool  if_num_updata = NO;
-static uint8_t SpeedErr_cnt = 0;
+static int      fire_num = 0;
+static bool     if_num_updata = NO;
+static uint8_t  SpeedErr_cnt = 0;
 
 void shoot_run(void const *argument)
 {
     (void)argument;
     vTaskDelay(1);
     shoot_pid_init();
-    for (;;) {
+    for (;;)
+    {
         if_shoot_com();
-        switch (shoot_com) {
+        switch (shoot_com)
+        {
         case com_nom:
+        {
             shoot_speed_set(&stander_shoot);
             shoot_pid_clac();
             break;
+        }
         case com_err:
+        {
             stander_shoot.shoot_speed_set = 0;
             shoot_pid_clac();
             break;
+        }
         }
         vTaskDelay(1);
     }
@@ -57,27 +63,35 @@ void shoot_pid_init(void)
     pid_init(&pid_shoot_speed[0], 5.0f, 0.0f, 0.0f, PID_shoot_IMAX, PID_shoot_MAX);
     pid_init(&pid_shoot_speed[1], 5.0f, 0.0f, 0.0f, PID_shoot_IMAX, PID_shoot_MAX);
 }
+
 void shoot_speed_set(shoot_t *mode)
 {
-    if (fire_num != control_data.shoot_num) {
+    if (fire_num != control_data.shoot_num)
+    {
         if_num_updata = YES;
         fire_num = control_data.shoot_num;
-    } else {
+    }
+    else
+    {
         if_num_updata = NO;
     }
 
-    if (if_num_updata == YES && control_data.shoot_speed > 15.0f) {
+    if (if_num_updata == YES && control_data.shoot_speed > 15.0f)
+    {
         Temp_Fix_30S();
         SpeedAdapt(control_data.shoot_speed, MIN_SPEED, MAX_SPEED,
                    &mode->shoot_speed_fix, UP_NUM, DOWN_NUM);
     }
 
-    if (control_data.shoot_mode == shoot_on) {
+    if (control_data.shoot_mode == shoot_on)
+    {
         mode->get_now_speed = control_data.shoot_speed;
         mode->shoot_speed_set = FRICTION_L3_SPEED
                               + mode->shoot_speed_fix
                               + mode->shoot_tem_fix;
-    } else {
+    }
+    else
+    {
         mode->shoot_speed_set = 0.0f;
     }
 }
@@ -91,12 +105,15 @@ void if_shoot_com(void)
 
 void shoot_pid_clac(void)
 {
-    if (control_data.shoot_mode == shoot_on) {
+    if (control_data.shoot_mode == shoot_on)
+    {
         shoot_motor[0].motor_tar.set_current = pid_calc(&pid_shoot_speed[0],
             shoot_motor[0].motor_measure.speed_rpm,  stander_shoot.shoot_speed_set);
         shoot_motor[1].motor_tar.set_current = pid_calc(&pid_shoot_speed[1],
             shoot_motor[1].motor_measure.speed_rpm, -stander_shoot.shoot_speed_set);
-    } else {
+    }
+    else
+    {
         shoot_motor[0].motor_tar.set_current = pid_calc(&pid_shoot_speed[0],
             shoot_motor[0].motor_measure.speed_rpm, 0.0f);
         shoot_motor[1].motor_tar.set_current = pid_calc(&pid_shoot_speed[1],
@@ -104,10 +121,7 @@ void shoot_pid_clac(void)
     }
 }
 
-
-
-
-//反馈3508电机是否达到目标转速
+/* 反馈3508电机是否达到目标转速 */
 bool Report_IF_Fric3508_SetSpeed(void)
 {
     return (fabsf(shoot_motor[0].motor_measure.speed_rpm
@@ -119,16 +133,21 @@ bool Report_IF_Fric3508_SetSpeed(void)
 void SpeedAdapt(float real_S, float min_S, float max_S,
                 float *fix, float up_num, float down_num)
 {
-    if (real_S < min_S && real_S > 8.0f) {
+    if (real_S < min_S && real_S > 8.0f)
+    {
         SpeedErr_cnt++;
-    } else if (real_S >= min_S && real_S <= max_S) {
+    }
+    else if (real_S >= min_S && real_S <= max_S)
+    {
         SpeedErr_cnt = 0;
     }
-    if (SpeedErr_cnt == 1) {
+    if (SpeedErr_cnt == 1)
+    {
         SpeedErr_cnt = 0;
         *fix += up_num;
     }
-    if (real_S > max_S) {
+    if (real_S > max_S)
+    {
         *fix -= down_num;
     }
 }
@@ -139,20 +158,3 @@ void Temp_Fix_30S(void)
                     + (float)shoot_motor[1].motor_measure.temperate) / 2.0f;
     stander_shoot.shoot_tem_fix = (temp_real - 35.0f) * 0.5f;
 }
-//  temp_real = (float)Shoot.Friction.moto_Fric[1].temp;
-
-  if(temp_real >= temp_low)
-    res = (temp_real - temp_low)/temp_scope * (-168);
-  if(temp_real < temp_low)
-    res = 0;
-  if(temp_real > temp_low + temp_scope)
-    res = -168;
-  
-  stander_shoot.shoot_tem_fix = res;
-}
-
-///*返回射速，单位m/s*/
-//float Report_RealShootSpeed(void)
-//{
-//	return shoot_data.initial_speed;
-//}
