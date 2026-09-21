@@ -1,0 +1,29 @@
+# ===== Keil MDK-ARM 编译产物（不纳入版本控制）=====
+*.o
+*.d
+*.crf
+*.dep
+*.axf
+*.lnp
+*.htm
+*.map
+*.lst
+*.bak
+*.iex
+*.sct
+*.build_log.htm
+
+# Keil 生成的输出目录（目标名 infantry_25）
+MDK-ARM/infantry_25/
+
+# ===== Keil / 编辑器 本地配置（因人而异，不应提交）=====
+*.uvguix.*
+*.uvoptx
+*.scvd
+*.dbgconf
+.vscode/*.log
+.vscode/*.lock
+
+# ===== 临时文件 =====
+*.zip
+!referee.zip
